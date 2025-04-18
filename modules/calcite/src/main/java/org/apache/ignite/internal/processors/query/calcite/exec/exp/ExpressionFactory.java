@@ -21,17 +21,20 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.AccumulatorWrapper;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.AggregateType;
+import org.apache.ignite.internal.processors.query.calcite.exec.exp.window.Framing;
 import org.apache.ignite.internal.processors.query.calcite.prepare.bounds.SearchBounds;
 
 /**
@@ -41,6 +44,13 @@ public interface ExpressionFactory<Row> {
     /** */
     Supplier<List<AccumulatorWrapper<Row>>> accumulatorsFactory(
         AggregateType type,
+        List<AggregateCall> calls,
+        RelDataType rowType
+    );
+
+    /** */
+    IntFunction<Framing<Row>> windowFrameFactory(
+        Window.Group group,
         List<AggregateCall> calls,
         RelDataType rowType
     );
