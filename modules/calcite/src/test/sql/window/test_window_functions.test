@@ -1,0 +1,22 @@
+# name: test/sql/window/test_window_functions.test
+# description: Test window functions
+# group: [window]
+
+# sample data
+statement ok
+CREATE TABLE w(id INTEGER, val INTEGER)
+
+statement ok
+INSERT INTO w VALUES (0, 0), (0, 1), (0, 2), (1, 0), (1, 0), (2, 0), (2, 1), (2, 1)
+
+query IIII
+SELECT row_number() over (), row_number() over (partition by id), dense_rank() over (partition by id order by val), count(1) over (partition by id) from w
+----
+1	1	1	3
+2	2	2	3
+3	3	3	3
+4	1	1	2
+5	2	1	2
+6	1	1	3
+7	2	2	3
+8	3	2	3

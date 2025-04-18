@@ -65,11 +65,14 @@ import org.apache.ignite.internal.processors.query.calcite.rule.TableFunctionSca
 import org.apache.ignite.internal.processors.query.calcite.rule.TableModifyConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.UnionConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.ValuesConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.WindowConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.ExposeIndexRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.FilterScanMergeRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.IgniteMultiJoinOptimizeRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.LogicalOrToUnionRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.ProjectScanMergeRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.logical.ProjectWindowConstantsRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.logical.ProjectWindowTransposeRule;
 
 import static org.apache.ignite.internal.processors.query.calcite.prepare.IgnitePrograms.cbo;
 import static org.apache.ignite.internal.processors.query.calcite.prepare.IgnitePrograms.hep;
@@ -98,6 +101,22 @@ public enum PlannerPhase {
     },
 
     /** */
+    HEP_WINDOW_SPLIT("Heuristic phase to split project to project and window") {
+        @Override public RuleSet getRules(PlanningContext ctx) {
+            return ctx.rules(
+                RuleSets.ofList(
+                    CoreRules.PROJECT_TO_LOGICAL_PROJECT_AND_WINDOW,
+                    ProjectWindowConstantsRule.INSTANCE
+                )
+            );
+        }
+
+        @Override public Program getProgram(PlanningContext ctx) {
+            return hep(getRules(ctx));
+        }
+    },
+
+    /** */
     HEP_FILTER_PUSH_DOWN("Heuristic phase to push down filters") {
         /** {@inheritDoc} */
         @Override public RuleSet getRules(PlanningContext ctx) {
@@ -111,7 +130,8 @@ public enum PlannerPhase {
                     CoreRules.JOIN_CONDITION_PUSH,
                     CoreRules.FILTER_INTO_JOIN,
                     CoreRules.FILTER_CORRELATE,
-                    CoreRules.FILTER_PROJECT_TRANSPOSE
+                    CoreRules.FILTER_PROJECT_TRANSPOSE,
+                    CoreRules.FILTER_WINDOW_TRANSPOSE
                 )
             );
         }
@@ -133,7 +153,8 @@ public enum PlannerPhase {
                     CoreRules.JOIN_PUSH_EXPRESSIONS,
                     CoreRules.PROJECT_MERGE,
                     CoreRules.PROJECT_REMOVE,
-                    CoreRules.PROJECT_FILTER_TRANSPOSE
+                    CoreRules.PROJECT_FILTER_TRANSPOSE,
+                    ProjectWindowTransposeRule.INSTANCE
                 )
             );
         }
@@ -261,6 +282,10 @@ public enum PlannerPhase {
                     CorrelateToNestedLoopRule.INSTANCE,
                     NestedLoopJoinConverterRule.INSTANCE,
 
+                    // This rule replaceces input refs for constants in the window with literal
+                    // Since ignite aggregate calculation bounded to input refs - this rule should be excluded
+                    //CoreRules.WINDOW_REDUCE_EXPRESSIONS,
+
                     ValuesConverterRule.INSTANCE,
                     LogicalScanConverterRule.INDEX_SCAN,
                     LogicalScanConverterRule.TABLE_SCAN,
@@ -280,7 +305,9 @@ public enum PlannerPhase {
                     TableModifyConverterRule.INSTANCE,
                     UnionConverterRule.INSTANCE,
                     SortConverterRule.INSTANCE,
-                    TableFunctionScanConverterRule.INSTANCE
+                    TableFunctionScanConverterRule.INSTANCE,
+                    WindowConverterRule.COLOCATED,
+                    WindowConverterRule.DISTRIBUTED
                 )
             );
         }

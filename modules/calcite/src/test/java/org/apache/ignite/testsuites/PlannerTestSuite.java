@@ -46,6 +46,7 @@ import org.apache.ignite.internal.processors.query.calcite.planner.TableFunction
 import org.apache.ignite.internal.processors.query.calcite.planner.TableSpoolPlannerTest;
 import org.apache.ignite.internal.processors.query.calcite.planner.UnionPlannerTest;
 import org.apache.ignite.internal.processors.query.calcite.planner.UserDefinedViewsPlannerTest;
+import org.apache.ignite.internal.processors.query.calcite.planner.WindowPlannerTest;
 import org.apache.ignite.internal.processors.query.calcite.planner.hints.HintsTestSuite;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
@@ -86,6 +87,8 @@ import org.junit.runners.Suite;
 
     HintsTestSuite.class,
     SerializationPlannerTest.class,
+
+    WindowPlannerTest.class
 })
 public class PlannerTestSuite {
 }

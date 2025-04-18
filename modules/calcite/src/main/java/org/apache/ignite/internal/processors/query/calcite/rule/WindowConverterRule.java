@@ -1,0 +1,149 @@
+package org.apache.ignite.internal.processors.query.calcite.rule;
+
+import java.util.ArrayList;
+import java.util.List;
+import com.google.common.collect.ImmutableList;
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.PhysicalNode;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Window;
+import org.apache.calcite.rel.logical.LogicalWindow;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rel.type.RelRecordType;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteConvention;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteWindow;
+import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistribution;
+import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
+import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
+import org.apache.ignite.internal.util.typedef.internal.U;
+
+/**
+ *
+ */
+public class WindowConverterRule {
+    public static final RelOptRule COLOCATED = new ColocatedWindowConverterRule();
+    public static final RelOptRule DISTRIBUTED = new DistributedWindowConverterRule();
+
+    private static final class ColocatedWindowConverterRule extends AbstractWindowConverterRule {
+        /**  */
+        private ColocatedWindowConverterRule() {
+            super("ColocatedWindowConverterRule");
+        }
+
+        @Override protected IgniteDistribution toDistribution(Window.Group group) {
+            return IgniteDistributions.single();
+        }
+    }
+
+    private static final class DistributedWindowConverterRule extends AbstractWindowConverterRule {
+        /**  */
+        private DistributedWindowConverterRule() {
+            super("DistributedWindowConverterRule");
+        }
+
+        @Override protected IgniteDistribution toDistribution(Window.Group group) {
+            if (group.keys.isEmpty()) {
+                return IgniteDistributions.single();
+            }
+
+            return IgniteDistributions.hash(group.keys.asList());
+        }
+    }
+
+    /**
+     *
+     */
+    private abstract static class AbstractWindowConverterRule extends AbstractIgniteConverterRule<LogicalWindow> {
+
+        /**
+         *
+         */
+        protected AbstractWindowConverterRule(String description) {
+            super(LogicalWindow.class, description);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override protected PhysicalNode convert(RelOptPlanner planner, RelMetadataQuery mq, LogicalWindow window) {
+            RelOptCluster cluster = window.getCluster();
+
+            RelNode result = window.getInput();
+
+            assert window.constants.isEmpty();
+
+            for (int grpIdx = 0; grpIdx < window.groups.size(); grpIdx++) {
+                Window.Group group = window.groups.get(grpIdx);
+
+                RelCollation collation = TraitUtils.mergeCollations(
+                    TraitUtils.createCollation(group.keys.asList()),
+                    group.collation()
+                );
+
+                RelTraitSet inTraits = cluster
+                    .traitSetOf(IgniteConvention.INSTANCE)
+                    .replace(toDistribution(group))
+                    .replace(collation);
+
+                RelTraitSet outTraits = cluster
+                    .traitSetOf(IgniteConvention.INSTANCE)
+                    .replace(toDistribution(group))
+                    .replace(collation);
+
+                result = convert(result, inTraits);
+
+                // add fields added by current group.
+                // see org.apache.calcite.rel.logical.LogicalWindow#create
+                String groupFieldPrefix = "w" + grpIdx + "$";
+                List<RelDataTypeField> fieldsAddedByCurrentGroup = U.arrayList(window.getRowType().getFieldList(),
+                    it -> it.getName().startsWith(groupFieldPrefix));
+                List<RelDataTypeField> groupFields = new ArrayList<>(result.getRowType().getFieldList());
+                groupFields.addAll(fieldsAddedByCurrentGroup);
+
+                RelRecordType rowType = new RelRecordType(groupFields);
+
+                List<Window.RexWinAggCall> newAggCalls = new ArrayList<>(group.aggCalls.size());
+                ImmutableList<Window.RexWinAggCall> calls = group.aggCalls;
+                for (int i = 0; i < calls.size(); i++) {
+                    Window.RexWinAggCall aggCall = calls.get(i);
+                    Window.RexWinAggCall newCall = new Window.RexWinAggCall(
+                        (SqlAggFunction)aggCall.op,
+                        aggCall.type,
+                        aggCall.operands,
+                        i,
+                        aggCall.distinct,
+                        aggCall.ignoreNulls
+                    );
+                    newAggCalls.add(newCall);
+                }
+
+                Window.Group newGroup = new Window.Group(
+                    group.keys,
+                    group.isRows,
+                    group.lowerBound,
+                    group.upperBound,
+                    group.orderKeys,
+                    newAggCalls
+                );
+
+                result = new IgniteWindow(
+                    window.getCluster(),
+                    window.getTraitSet().merge(outTraits),
+                    result,
+                    rowType,
+                    newGroup
+                );
+            }
+
+            return (PhysicalNode)result;
+        }
+
+        protected abstract IgniteDistribution toDistribution(Window.Group group);
+    }
+}

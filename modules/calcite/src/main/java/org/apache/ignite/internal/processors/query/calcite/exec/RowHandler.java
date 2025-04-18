@@ -29,6 +29,9 @@ import org.apache.ignite.internal.processors.query.calcite.type.IgniteTypeFactor
  */
 public interface RowHandler<Row> {
     /** */
+    Object[] get(Row row);
+
+    /** */
     Object get(int field, Row row);
 
     /** */

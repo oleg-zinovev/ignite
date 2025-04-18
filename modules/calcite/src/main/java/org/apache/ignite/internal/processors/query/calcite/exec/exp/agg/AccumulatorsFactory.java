@@ -72,7 +72,7 @@ public class AccumulatorsFactory<Row> implements Supplier<List<AccumulatorWrappe
     }
 
     /** */
-    static Function<Object, Object> cast(RelDataType from, RelDataType to) {
+    public static Function<Object, Object> cast(RelDataType from, RelDataType to) {
         assert !from.isStruct();
         assert !to.isStruct();
 
@@ -80,7 +80,7 @@ public class AccumulatorsFactory<Row> implements Supplier<List<AccumulatorWrappe
     }
 
     /** */
-    static Function<Object, Object> cast(Pair<RelDataType, RelDataType> types) {
+    public static Function<Object, Object> cast(Pair<RelDataType, RelDataType> types) {
         try {
             return CACHE.get(types);
         }

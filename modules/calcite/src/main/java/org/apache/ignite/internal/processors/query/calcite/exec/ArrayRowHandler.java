@@ -31,6 +31,10 @@ public class ArrayRowHandler implements RowHandler<Object[]> {
     /** */
     private ArrayRowHandler() {}
 
+    @Override public Object[] get(Object[] objects) {
+        return objects.clone();
+    }
+
     /** {@inheritDoc} */
     @Override public Object get(int field, Object[] row) {
         return row[field];

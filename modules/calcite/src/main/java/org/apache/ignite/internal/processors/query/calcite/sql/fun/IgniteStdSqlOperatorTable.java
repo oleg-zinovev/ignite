@@ -317,5 +317,9 @@ public class IgniteStdSqlOperatorTable extends ReflectiveSqlOperatorTable {
         register(SqlStdOperatorTable.BIT_AND);
         register(SqlStdOperatorTable.BIT_OR);
         register(SqlStdOperatorTable.BIT_XOR);
+
+        // Window specific operations
+        register(SqlStdOperatorTable.ROW_NUMBER);
+        register(SqlStdOperatorTable.DENSE_RANK);
     }
 }
