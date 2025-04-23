@@ -78,7 +78,8 @@ public class IgniteWindow extends Window implements TraitsAwareIgniteRel {
 
     /** {@inheritDoc} */
     @Override public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw)
+        return pw
+            .input("input", getInput())
             .item("rowType", getRowType())
             .item("group", group);
     }

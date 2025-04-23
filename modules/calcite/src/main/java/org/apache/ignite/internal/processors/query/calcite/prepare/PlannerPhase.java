@@ -71,7 +71,7 @@ import org.apache.ignite.internal.processors.query.calcite.rule.logical.FilterSc
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.IgniteMultiJoinOptimizeRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.LogicalOrToUnionRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.ProjectScanMergeRule;
-import org.apache.ignite.internal.processors.query.calcite.rule.logical.WindowConstantsProjectRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.logical.IgniteWindowConstantsProjectRule;
 
 import static org.apache.ignite.internal.processors.query.calcite.prepare.IgnitePrograms.cbo;
 import static org.apache.ignite.internal.processors.query.calcite.prepare.IgnitePrograms.hep;
@@ -105,7 +105,7 @@ public enum PlannerPhase {
             return ctx.rules(
                 RuleSets.ofList(
                     CoreRules.PROJECT_TO_LOGICAL_PROJECT_AND_WINDOW,
-                    WindowConstantsProjectRule.INSTANCE
+                    IgniteWindowConstantsProjectRule.INSTANCE
                 )
             );
         }
@@ -280,6 +280,8 @@ public enum PlannerPhase {
                     CorrelatedNestedLoopJoinRule.INSTANCE,
                     CorrelateToNestedLoopRule.INSTANCE,
                     NestedLoopJoinConverterRule.INSTANCE,
+
+                    CoreRules.WINDOW_REDUCE_EXPRESSIONS,
 
                     ValuesConverterRule.INSTANCE,
                     LogicalScanConverterRule.INDEX_SCAN,
