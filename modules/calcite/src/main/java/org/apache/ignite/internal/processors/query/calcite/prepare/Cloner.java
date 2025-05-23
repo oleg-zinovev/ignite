@@ -52,6 +52,8 @@ import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSort
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.set.IgniteSetOp;
+import org.apache.ignite.internal.processors.query.calcite.rel.window.IgniteBufferingWindow;
+import org.apache.ignite.internal.processors.query.calcite.rel.window.IgniteStreamingWindow;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.util.typedef.F;
 
@@ -263,6 +265,16 @@ public class Cloner implements IgniteRelVisitor<IgniteRel> {
 
     /** {@inheritDoc} */
     @Override public IgniteRel visit(IgniteUncollect rel) {
+        return rel.clone(cluster, F.asList(visit((IgniteRel)rel.getInput())));
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteRel visit(IgniteBufferingWindow rel) {
+        return rel.clone(cluster, F.asList(visit((IgniteRel)rel.getInput())));
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteRel visit(IgniteStreamingWindow rel) {
         return rel.clone(cluster, F.asList(visit((IgniteRel)rel.getInput())));
     }
 

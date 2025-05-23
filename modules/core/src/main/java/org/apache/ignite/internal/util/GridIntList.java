@@ -281,6 +281,30 @@ public class GridIntList implements Message, Externalizable {
         return res;
     }
 
+    /**
+     * Sets value at given index.
+     */
+    public void set(int i, int x) {
+        if (i >= idx) {
+            throw new IndexOutOfBoundsException("Index: " + i + ", Size: " + idx);
+        }
+        arr[i] = x;
+    }
+
+    /**
+     * Performs binary search for the given value.
+     */
+    public int bsearch(int x) {
+        return Arrays.binarySearch(arr, 0, idx, x);
+    }
+
+    /**
+     * Remove all elements from this list.
+     */
+    public void clear() {
+        idx = 0;
+    }
+
     /** {@inheritDoc} */
     @Override public void writeExternal(ObjectOutput out) throws IOException {
         out.writeInt(idx);

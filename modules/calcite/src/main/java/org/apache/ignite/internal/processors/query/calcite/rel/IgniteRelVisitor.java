@@ -24,6 +24,8 @@ import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSort
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.set.IgniteSetOp;
+import org.apache.ignite.internal.processors.query.calcite.rel.window.IgniteBufferingWindow;
+import org.apache.ignite.internal.processors.query.calcite.rel.window.IgniteStreamingWindow;
 
 /**
  * A visitor to traverse an Ignite relational nodes tree.
@@ -184,6 +186,16 @@ public interface IgniteRelVisitor<T> {
      * See {@link IgniteRelVisitor#visit(IgniteRel)}
      */
     T visit(IgniteUncollect rel);
+
+    /**
+     * See {@link IgniteRelVisitor#visit(IgniteRel)}
+     */
+    T visit(IgniteBufferingWindow rel);
+
+    /**
+     * See {@link IgniteRelVisitor#visit(IgniteRel)}
+     */
+    T visit(IgniteStreamingWindow rel);
 
     /**
      * Visits a relational node and calculates a result on the basis of node meta information.

@@ -448,6 +448,15 @@ public class IgniteSqlValidator extends SqlValidatorImpl {
             case BIT_AND:
             case BIT_OR:
             case BIT_XOR:
+            case ROW_NUMBER:
+            case DENSE_RANK:
+            case RANK:
+            case PERCENT_RANK:
+            case CUME_DIST:
+            case LAG:
+            case LEAD:
+            case FIRST_VALUE:
+            case LAST_VALUE:
                 return;
             default:
                 throw newValidationError(call,

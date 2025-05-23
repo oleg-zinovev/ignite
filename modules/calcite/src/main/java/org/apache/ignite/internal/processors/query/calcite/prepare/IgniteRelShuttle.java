@@ -51,6 +51,8 @@ import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSort
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.set.IgniteSetOp;
+import org.apache.ignite.internal.processors.query.calcite.rel.window.IgniteBufferingWindow;
+import org.apache.ignite.internal.processors.query.calcite.rel.window.IgniteStreamingWindow;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
 /** */
@@ -207,6 +209,16 @@ public class IgniteRelShuttle implements IgniteRelVisitor<IgniteRel> {
 
     /** {@inheritDoc} */
     @Override public IgniteRel visit(IgniteUncollect rel) {
+        return processNode(rel);
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteRel visit(IgniteBufferingWindow rel) {
+        return processNode(rel);
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteRel visit(IgniteStreamingWindow rel) {
         return processNode(rel);
     }
 

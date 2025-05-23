@@ -28,6 +28,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Intersect;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.core.Minus;
@@ -44,6 +45,7 @@ import org.apache.ignite.internal.processors.query.calcite.exec.exp.ExpressionFa
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.RangeIterable;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.AccumulatorWrapper;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.AggregateType;
+import org.apache.ignite.internal.processors.query.calcite.exec.exp.window.WindowPartitionBase;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.AbstractSetOpNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.CollectNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.CorrelatedNestedLoopJoinNode;
@@ -67,6 +69,7 @@ import org.apache.ignite.internal.processors.query.calcite.exec.rel.SortNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.TableSpoolNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.UncollectNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.UnionAllNode;
+import org.apache.ignite.internal.processors.query.calcite.exec.rel.WindowNode;
 import org.apache.ignite.internal.processors.query.calcite.metadata.AffinityService;
 import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationGroup;
 import org.apache.ignite.internal.processors.query.calcite.prepare.bounds.SearchBounds;
@@ -103,6 +106,8 @@ import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSort
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.set.IgniteSetOp;
+import org.apache.ignite.internal.processors.query.calcite.rel.window.IgniteBufferingWindow;
+import org.apache.ignite.internal.processors.query.calcite.rel.window.IgniteStreamingWindow;
 import org.apache.ignite.internal.processors.query.calcite.rule.LogicalScanConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.schema.CacheTableDescriptor;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteIndex;
@@ -874,6 +879,52 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
         RelDataType outType = rel.getRowType();
 
         CollectNode<Row> node = new CollectNode<>(ctx, outType);
+
+        Node<Row> input = visit(rel.getInput());
+
+        node.register(input);
+
+        return node;
+    }
+
+    @Override public Node<Row> visit(IgniteBufferingWindow rel) {
+        RelDataType outType = rel.getRowType();
+        RelDataType inputType = rel.getInput().getRowType();
+
+        RelCollation collation = rel.collation();
+        int grpKeysSize = rel.getGroup().keys.cardinality();
+
+        assert collation.getFieldCollations().size() >= grpKeysSize;
+
+        List<AggregateCall> aggCalls = rel.getGroup().getAggregateCalls(rel);
+        Supplier<WindowPartitionBase<Row>> frameFactory = expressionFactory.windowFrameFactory(rel.getGroup(), aggCalls, inputType, false);
+
+        RowFactory<Row> rowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), outType);
+
+        WindowNode<Row> node = new WindowNode<>(ctx, outType, frameFactory, rowFactory);
+
+        Node<Row> input = visit(rel.getInput());
+
+        node.register(input);
+
+        return node;
+    }
+
+    @Override public Node<Row> visit(IgniteStreamingWindow rel) {
+        RelDataType outType = rel.getRowType();
+        RelDataType inputType = rel.getInput().getRowType();
+
+        RelCollation collation = rel.collation();
+        int grpKeysSize = rel.getGroup().keys.cardinality();
+
+        assert collation.getFieldCollations().size() >= grpKeysSize;
+
+        List<AggregateCall> aggCalls = rel.getGroup().getAggregateCalls(rel);
+        Supplier<WindowPartitionBase<Row>> frameFactory = expressionFactory.windowFrameFactory(rel.getGroup(), aggCalls, inputType, true);
+
+        RowFactory<Row> rowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), outType);
+
+        WindowNode<Row> node = new WindowNode<>(ctx, outType, frameFactory, rowFactory);
 
         Node<Row> input = visit(rel.getInput());
 
