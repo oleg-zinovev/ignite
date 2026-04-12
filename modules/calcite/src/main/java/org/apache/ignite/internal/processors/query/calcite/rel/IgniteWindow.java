@@ -33,6 +33,7 @@ import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Pair;
 import org.apache.calcite.util.Util;
 import org.apache.ignite.internal.processors.query.calcite.externalize.RelInputEx;
@@ -40,7 +41,6 @@ import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteC
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistribution;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
-import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost.AGG_CALL_MEM_COST;
@@ -51,24 +51,23 @@ import static org.apache.ignite.internal.processors.query.calcite.trait.TraitUti
 /**
  * A relational expression representing a set of window aggregates.
  *
- * <p>A Window can handle several window aggregate functions, over several
- * partitions, with pre- and post-expressions, and an optional post-filter.
- * Each of the partitions is defined by a partition key (zero or more columns)
- * and a range (logical or physical). The partitions expect the data to be
+ * <p>A Window can handle several window aggregate functions, over one
+ * partition, with pre- and post-expressions, and an optional post-filter.
+ * Partitions is defined by a partition key (zero or more columns)
+ * and a range (logical or physical). The partition expect the data to be
  * sorted correctly on input to the relational expression.
  *
  * <p>Each {@link Window.Group} has a set of
  * {@link org.apache.calcite.rex.RexOver} objects.
  */
 public class IgniteWindow extends Window implements IgniteRel {
-
-    /** */
+    /**  */
     private final Group grp;
 
-    /** */
+    /**  */
     private final boolean streaming;
 
-    /** */
+    /**  */
     public IgniteWindow(
         RelOptCluster cluster,
         RelTraitSet traitSet,
@@ -83,22 +82,23 @@ public class IgniteWindow extends Window implements IgniteRel {
         assert !grp.aggCalls.isEmpty();
     }
 
-    /** */
+    /**  */
     public IgniteWindow(RelInput input) {
+        // Streaming flag required only on planning phase, and has not affect on execution.
         this(input.getCluster(),
             changeTraits(input, IgniteConvention.INSTANCE).getTraitSet(),
             input.getInput(),
             input.getRowType("rowType"),
             ((RelInputEx)input).getWindowGroup("group"),
-            input.getBoolean("streaming", false));
+            false);
     }
 
-    /** */
+    /**  */
     public Group getGroup() {
         return grp;
     }
 
-    /** */
+    /**  */
     public boolean isStreaming() {
         return streaming;
     }
@@ -129,8 +129,7 @@ public class IgniteWindow extends Window implements IgniteRel {
         return pw
             .input("input", getInput())
             .item("rowType", getRowType())
-            .item("group", grp)
-            .item("streaming", streaming);
+            .item("group", grp);
     }
 
     /** {@inheritDoc} */
@@ -186,33 +185,25 @@ public class IgniteWindow extends Window implements IgniteRel {
 
         RelTraitSet traits = target;
         RelCollation requiredCollation = TraitUtils.collation(target);
-        if (!satisfiesCollationSansGroupFields(requiredCollation)) {
+        if (!satisfiesCollationSansGroupFields(requiredCollation))
             traits = traits.replace(collation());
-        }
 
         IgniteDistribution distribution = TraitUtils.distribution(target);
         if (!satisfiesDistribution(distribution))
             traits = traits.replace(distribution());
-        else if (distribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
-            // Group set contains all distribution keys, shift distribution keys according to used columns.
-            IgniteDistribution outDistribution = distribution.apply(Commons.mapping(grp.keys, rowType.getFieldCount()));
-            traits = traits.replace(outDistribution);
-        }
 
-        if (traits == traitSet) {
-            // new traits equal to current traits of window.
-            // no need to pass throught or derive any.
+        if (traits == traitSet)
+            // New traits equal to current traits of window.
+            // No need to pass throught or derive any.
             return null;
-        }
 
         return traits;
     }
 
     /** Check input distribution satisfies collation of this window. */
     private boolean satisfiesDistribution(IgniteDistribution distribution) {
-        if (distribution.satisfies(IgniteDistributions.single()) || distribution.function().correlated()) {
+        if (distribution.satisfies(IgniteDistributions.single()) || distribution.function().correlated())
             return true;
-        }
 
         if (distribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
             for (Integer key : distribution.getKeys()) {
@@ -234,16 +225,22 @@ public class IgniteWindow extends Window implements IgniteRel {
      */
     private boolean satisfiesCollationSansGroupFields(RelCollation desiredCollation) {
         RelCollation collation = collation();
-        if (desiredCollation.satisfies(collation)) {
+        if (desiredCollation.satisfies(collation))
             return true;
-        }
 
-        if (!Util.startsWith(desiredCollation.getKeys(), collation.getKeys())) {
+        if (desiredCollation.getFieldCollations().size() < collation.getFieldCollations().size())
             return false;
-        }
 
         int grpKeysSize = grp.keys.cardinality();
-        // strip group keys
+
+        // Check group keys (collation field order and direction meaningless).
+        // Since window collation starts with group keys with 'default' sorting direction,
+        // desired collation should start with same fields in any order / with any direction.
+        ImmutableBitSet desiredGrpFields = ImmutableBitSet.of(Util.first(desiredCollation.getKeys(), grpKeysSize));
+        if (!desiredGrpFields.equals(grp.keys))
+            return false;
+
+        // Check remaining collation (collation field order and direction meaningfull).
         List<RelFieldCollation> desiredFieldCollations = Util.skip(desiredCollation.getFieldCollations(), grpKeysSize);
         List<RelFieldCollation> fieldCollations = Util.skip(collation.getFieldCollations(), grpKeysSize);
         return Util.startsWith(desiredFieldCollations, fieldCollations);

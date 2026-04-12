@@ -29,31 +29,31 @@ import org.apache.ignite.internal.util.typedef.F;
 
 /** Window node. */
 public class WindowNode<Row> extends MemoryTrackingNode<Row> implements SingleNode<Row>, Downstream<Row> {
-    /** */
+    /**  */
     private final Comparator<Row> partCmp;
 
-    /** */
+    /**  */
     private final Supplier<WindowPartition<Row>> partFactory;
 
-    /** */
+    /**  */
     private final RowHandler.RowFactory<Row> rowFactory;
 
-    /** */
+    /**  */
     private WindowPartition<Row> part;
 
-    /** */
+    /**  */
     private int requested;
 
-    /** */
+    /**  */
     private int waiting;
 
-    /** */
+    /**  */
     private Row prevRow;
 
-    /** */
+    /**  */
     private final Deque<Row> outBuf = new ArrayDeque<>(IN_BUFFER_SIZE);
 
-    /** */
+    /**  */
     public WindowNode(
         ExecutionContext<Row> ctx,
         RelDataType rowType,
@@ -122,9 +122,8 @@ public class WindowNode<Row> extends MemoryTrackingNode<Row> implements SingleNo
     /** {@inheritDoc} */
     @Override public void end() throws Exception {
         assert downstream() != null;
-        if (waiting < 0) {
+        if (waiting < 0)
             return;
-        }
 
         waiting = -1;
 
@@ -160,7 +159,7 @@ public class WindowNode<Row> extends MemoryTrackingNode<Row> implements SingleNo
         return this;
     }
 
-    /** */
+    /**  */
     private void doPush() throws Exception {
         while (requested > 0 && !outBuf.isEmpty()) {
             requested--;

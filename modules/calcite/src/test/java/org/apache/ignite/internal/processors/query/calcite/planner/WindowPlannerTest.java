@@ -79,7 +79,7 @@ public class WindowPlannerTest extends AbstractPlannerTest {
                 .and(it -> "window(rows between UNBOUNDED PRECEDING and CURRENT ROW aggs [ROW_NUMBER()])".equals(it.getGroup().toString()))
                 .and(hasChildThat(isInstanceOf(IgniteWindow.class)
                     .and(not(IgniteWindow::isStreaming))
-                    .and(it -> "window(partition {0} aggs [SUM($1), MIN($1)])".equals(it.getGroup().toString()))))));
+                    .and(it -> "window(partition {0} aggs [COUNT($1), SUM($1), MIN($1)])".equals(it.getGroup().toString()))))));
     }
 
     /**
@@ -93,17 +93,16 @@ public class WindowPlannerTest extends AbstractPlannerTest {
 
         assertPlan(sql, publicSchema,
             isInstanceOf(IgniteProject.class)
-                // the top project should remove constants from the window rel on position 2..4.
+                // The top project should remove constants from the window rel on position 2..4.
                 .and(project -> "[$0, $1, $5]".equals(project.getProjects().toString()))
                 .and(input(isInstanceOf(IgniteWindow.class)
                     .and(it -> it.getGroup().lowerBound.getOffset() instanceof RexLiteral
                         && it.getGroup().upperBound.getOffset() instanceof RexLiteral)
                     .and(hasChildThat(isInstanceOf(IgniteProject.class)
-                        // the bottom project should add agg call constants from the window rel on position 2..4
+                        // The bottom project should add agg call constants from the window rel on position 2..4.
                         .and(project -> "[$0, $1, 2, 10, 20]".equals(project.getProjects().toString())))))),
             "ProjectTableScanMergeRule", "ProjectTableScanMergeSkipCorrelatedRule", "ProjectMergeRule", "ProjectWindowTransposeRule");
     }
-
 
     /**
      * @throws Exception if failed
@@ -115,7 +114,7 @@ public class WindowPlannerTest extends AbstractPlannerTest {
         assertPlan(sql, publicSchema,
             hasChildThat(isInstanceOf(IgniteWindow.class)
                 .and(hasChildThat(isInstanceOf(IgniteProject.class)
-                    // ProjectWindowTransposeRule should eliminate constant (10) in projection
+                    // ProjectWindowTransposeRule should eliminate constant (10) in projection.
                     .and(project -> project.getProjects().stream().noneMatch(it -> it instanceof RexLiteral))))),
             "ProjectTableScanMergeRule", "ProjectTableScanMergeSkipCorrelatedRule");
     }

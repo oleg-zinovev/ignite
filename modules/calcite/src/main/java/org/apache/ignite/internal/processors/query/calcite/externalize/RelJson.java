@@ -122,18 +122,18 @@ import org.apache.ignite.internal.util.typedef.internal.U;
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
 class RelJson {
-    /** */
+    /**  */
     @SuppressWarnings("PublicInnerClass") @FunctionalInterface
     public static interface RelFactory extends Function<RelInput, RelNode> {
         /** {@inheritDoc} */
         @Override RelNode apply(RelInput input);
     }
 
-    /** */
+    /**  */
     private static final LoadingCache<String, RelFactory> FACTORIES_CACHE = CacheBuilder.newBuilder()
         .build(CacheLoader.from(RelJson::relFactory));
 
-    /** */
+    /**  */
     private static RelFactory relFactory(String typeName) {
         Class<?> clazz = null;
 
@@ -167,7 +167,7 @@ class RelJson {
         return Commons.compile(RelFactory.class, Expressions.toString(F.asList(declaration), "\n", true));
     }
 
-    /** */
+    /**  */
     private static final ImmutableMap<String, Enum<?>> ENUM_BY_NAME;
 
     /** */
@@ -201,14 +201,14 @@ class RelJson {
         ENUM_BY_NAME = enumByName.build();
     }
 
-    /** */
+    /**  */
     private static void register(ImmutableMap.Builder<String, Enum<?>> builder, Class<? extends Enum> aClass) {
         String preffix = aClass.getSimpleName() + "#";
         for (Enum enumConstant : aClass.getEnumConstants())
             builder.put(preffix + enumConstant.name(), enumConstant);
     }
 
-    /** */
+    /**  */
     private static Class<?> classForName(String typeName, boolean skipNotFound) {
         try {
             return U.forName(typeName, U.gridClassLoader());
@@ -221,7 +221,7 @@ class RelJson {
         return null;
     }
 
-    /** */
+    /**  */
     private static final List<String> PACKAGES =
         ImmutableList.of(
             "org.apache.ignite.internal.processors.query.calcite.rel.",
@@ -236,17 +236,17 @@ class RelJson {
     /** Query context. */
     private final BaseQueryContext qctx;
 
-    /** */
+    /**  */
     RelJson(BaseQueryContext qctx) {
         this.qctx = qctx;
     }
 
-    /** */
+    /**  */
     Function<RelInput, RelNode> factory(String type) {
         return FACTORIES_CACHE.getUnchecked(type);
     }
 
-    /** */
+    /**  */
     String classToTypeName(Class<? extends RelNode> class_) {
         if (IgniteRel.class.isAssignableFrom(class_))
             return class_.getSimpleName();
@@ -262,7 +262,7 @@ class RelJson {
         return canonicalName;
     }
 
-    /** */
+    /**  */
     Object toJson(Object value) {
         if (value == null
             || value instanceof Number
@@ -319,7 +319,7 @@ class RelJson {
                 + value + " (type " + value.getClass().getCanonicalName() + ")");
     }
 
-    /** */
+    /**  */
     RelCollation toCollation(List<Map<String, Object>> jsonFieldCollations) {
         if (jsonFieldCollations == null)
             return RelCollations.EMPTY;
@@ -331,7 +331,7 @@ class RelJson {
         return RelCollations.of(fieldCollations);
     }
 
-    /** */
+    /**  */
     IgniteDistribution toDistribution(Object distribution) {
         if (distribution instanceof String) {
             switch ((String)distribution) {
@@ -357,7 +357,7 @@ class RelJson {
         return IgniteDistributions.hash((List<Integer>)map.get("keys"), DistributionFunction.hash());
     }
 
-    /** */
+    /**  */
     RelDataType toType(RelDataTypeFactory typeFactory, Object o) {
         if (o instanceof List) {
             List<Map<String, Object>> jsonList = (List<Map<String, Object>>)o;
@@ -432,7 +432,7 @@ class RelJson {
         }
     }
 
-    /** */
+    /**  */
     RexNode toRex(RelInput relInput, Object o) {
         RelOptCluster cluster = relInput.getCluster();
         RexBuilder rexBuilder = cluster.getRexBuilder();
@@ -547,7 +547,7 @@ class RelJson {
             throw new UnsupportedOperationException("cannot convert to rex " + o);
     }
 
-    /** */
+    /**  */
     SqlOperator toOp(Map<String, Object> map) {
         // in case different operator has the same kind, check with both name and kind.
         String name = map.get("name").toString();
@@ -572,22 +572,22 @@ class RelJson {
         return null;
     }
 
-    /** */
+    /**  */
     <T> List<T> list() {
         return new ArrayList<>();
     }
 
-    /** */
+    /**  */
     <T> Set<T> set() {
         return new LinkedHashSet<>();
     }
 
-    /** */
+    /**  */
     <T> Map<String, T> map() {
         return new LinkedHashMap<>();
     }
 
-    /** */
+    /**  */
     <T extends Enum<T>> T toEnum(Object o) {
         if (o instanceof Map) {
             Map<String, Object> map = (Map<String, Object>)o;
@@ -602,14 +602,14 @@ class RelJson {
         return (T)ENUM_BY_NAME.get(name);
     }
 
-    /** */
+    /**  */
     private ByteString toByteString(Object o) {
         assert o instanceof String;
 
         return ByteString.of((String)o, 16);
     }
 
-    /** */
+    /**  */
     private RelFieldCollation toFieldCollation(Map<String, Object> map) {
         Integer field = (Integer)map.get("field");
         Direction direction = toEnum(map.get("direction"));
@@ -617,7 +617,7 @@ class RelJson {
         return new RelFieldCollation(field, direction, nullDirection);
     }
 
-    /** */
+    /**  */
     private List<RexFieldCollation> toRexFieldCollationList(RelInput relInput, List<Map<String, Object>> order) {
         if (order == null)
             return null;
@@ -637,7 +637,7 @@ class RelJson {
         return list;
     }
 
-    /** */
+    /**  */
     private RexWindowBound toRexWindowBound(RelInput input, Map<String, Object> map) {
         if (map == null)
             return null;
@@ -668,7 +668,7 @@ class RelJson {
         }
     }
 
-    /** */
+    /**  */
     private List<RexNode> toRexList(RelInput relInput, List<?> operands) {
         List<RexNode> list = new ArrayList<>();
         for (Object operand : operands)
@@ -676,7 +676,7 @@ class RelJson {
         return list;
     }
 
-    /** */
+    /**  */
     private SearchBounds toSearchBound(RelInput input, Map<String, Object> map) {
         if (map == null)
             return null;
@@ -699,7 +699,7 @@ class RelJson {
         throw new IllegalStateException("Unsupported search bound type: " + type);
     }
 
-    /** */
+    /**  */
     List<SearchBounds> toSearchBoundList(RelInput input, List<Map<String, Object>> bounds) {
         if (bounds == null)
             return null;
@@ -707,42 +707,42 @@ class RelJson {
         return bounds.stream().map(b -> toSearchBound(input, b)).collect(Collectors.toList());
     }
 
-    /** */
-    Window.Group toWindowGroup(RelInput input, Map<String, Object> group) {
-        if (group == null)
+    /**  */
+    Window.Group toWindowGroup(RelInput input, Map<String, Object> grp) {
+        if (grp == null)
             return null;
 
-        List<Window.RexWinAggCall> aggCalls = Commons.transform((List<Map<String, Object>>)group.get("calls"),
+        List<Window.RexWinAggCall> aggCalls = Commons.transform((List<Map<String, Object>>)grp.get("calls"),
             it -> (Window.RexWinAggCall)toRex(input, it));
-        ImmutableBitSet partition = group.get("partition") == null
+        ImmutableBitSet partition = grp.get("partition") == null
             ? ImmutableBitSet.of()
-            : ImmutableBitSet.of((Iterable<Integer>)group.get("partition"));
-        RelCollation order = group.get("order") == null
+            : ImmutableBitSet.of((Iterable<Integer>)grp.get("partition"));
+        RelCollation order = grp.get("order") == null
             ? RelCollations.EMPTY
-            : toCollation((List<Map<String, Object>>)group.get("order"));
+            : toCollation((List<Map<String, Object>>)grp.get("order"));
         RexWindowBound lowerBound;
         RexWindowBound upperBound;
-        boolean physical;
-        if (group.get("rows-lower") != null) {
-            lowerBound = toRexWindowBound(input, (Map)group.get("rows-lower"));
-            upperBound = toRexWindowBound(input, (Map)group.get("rows-upper"));
-            physical = true;
+        boolean rows;
+        if (grp.get("rows-lower") != null) {
+            lowerBound = toRexWindowBound(input, (Map)grp.get("rows-lower"));
+            upperBound = toRexWindowBound(input, (Map)grp.get("rows-upper"));
+            rows = true;
         }
-        else if (group.get("range-lower") != null) {
-            lowerBound = toRexWindowBound(input, (Map)group.get("range-lower"));
-            upperBound = toRexWindowBound(input, (Map)group.get("range-upper"));
-            physical = false;
+        else if (grp.get("range-lower") != null) {
+            lowerBound = toRexWindowBound(input, (Map)grp.get("range-lower"));
+            upperBound = toRexWindowBound(input, (Map)grp.get("range-upper"));
+            rows = false;
         }
         else {
             // No ROWS or RANGE clause
             lowerBound = null;
             upperBound = null;
-            physical = false;
+            rows = false;
         }
-        RexWindowExclusion exclude = toEnum(group.get("exclude"));
+        RexWindowExclusion exclude = toEnum(grp.get("exclude"));
         return new Window.Group(
             partition,
-            physical,
+            rows,
             lowerBound,
             upperBound,
             exclude,
@@ -751,7 +751,7 @@ class RelJson {
         );
     }
 
-    /** */
+    /**  */
     private Object toJson(Enum<?> enum0) {
         String key = enum0.getDeclaringClass().getSimpleName() + "#" + enum0.name();
 
@@ -764,7 +764,7 @@ class RelJson {
         return map;
     }
 
-    /** */
+    /**  */
     private Object toJson(AggregateCall node) {
         Map<String, Object> map = map();
         map.put("agg", toJson(node.getAggregation()));
@@ -778,7 +778,7 @@ class RelJson {
         return map;
     }
 
-    /** */
+    /**  */
     private Object toJson(RelDataType node) {
         if (node instanceof JavaType) {
             Map<String, Object> map = map();
@@ -823,7 +823,7 @@ class RelJson {
         }
     }
 
-    /** */
+    /**  */
     private Object toJson(RelDataTypeField node) {
         Map<String, Object> map;
         if (node.getType().isStruct()) {
@@ -836,12 +836,12 @@ class RelJson {
         return map;
     }
 
-    /** */
+    /**  */
     private Object toJson(CorrelationId node) {
         return node.getId();
     }
 
-    /** */
+    /**  */
     private Object toJson(RexNode node) {
         // Removes calls to SEARCH and the included Sarg and converts them to comparisons.
         node = RexUtils.expandSearchNullableRecursive(Commons.emptyCluster().getRexBuilder(), null, node);
@@ -925,7 +925,7 @@ class RelJson {
         }
     }
 
-    /** */
+    /**  */
     private Object toJson(Window.Group grp) {
         Map<String, Object> map = map();
         map.put("calls", toJson(grp.aggCalls));
@@ -933,27 +933,23 @@ class RelJson {
             map.put("partition", toJson(grp.keys));
         if (!grp.orderKeys.getKeys().isEmpty())
             map.put("order", toJson(grp.orderKeys));
-        if (grp.lowerBound == null) {
-            // No ROWS or RANGE clause
-        }
-        else if (grp.upperBound == null)
-            if (grp.isRows)
+        if (grp.isRows) {
+            if (grp.lowerBound != null)
                 map.put("rows-lower", toJson(grp.lowerBound));
-            else
-                map.put("range-lower", toJson(grp.lowerBound));
-        else if (grp.isRows) {
-            map.put("rows-lower", toJson(grp.lowerBound));
-            map.put("rows-upper", toJson(grp.upperBound));
+            if (grp.upperBound != null)
+                map.put("rows-upper", toJson(grp.upperBound));
         }
         else {
-            map.put("range-lower", toJson(grp.lowerBound));
-            map.put("range-upper", toJson(grp.upperBound));
+            if (grp.lowerBound != null)
+                map.put("range-lower", toJson(grp.lowerBound));
+            if (grp.upperBound != null)
+                map.put("range-upper", toJson(grp.upperBound));
         }
         map.put("exclude", toJson(grp.exclude));
         return map;
     }
 
-    /** */
+    /**  */
     private Object toJson(DistributionTrait distribution) {
         Type type = distribution.getType();
 
@@ -985,7 +981,7 @@ class RelJson {
         }
     }
 
-    /** */
+    /**  */
     private Object toJson(RelCollationImpl node) {
         List<Object> list = list();
         for (RelFieldCollation fieldCollation : node.getFieldCollations()) {
@@ -998,7 +994,7 @@ class RelJson {
         return list;
     }
 
-    /** */
+    /**  */
     private Object toJson(RexFieldCollation collation) {
         Map<String, Object> map = map();
         map.put("expr", toJson(collation.left));
@@ -1007,7 +1003,7 @@ class RelJson {
         return map;
     }
 
-    /** */
+    /**  */
     private Object toJson(RexWindowBound windowBound) {
         Map<String, Object> map = map();
         if (windowBound.isCurrentRow())
@@ -1021,7 +1017,7 @@ class RelJson {
         return map;
     }
 
-    /** */
+    /**  */
     private Object toJson(SqlOperator operator) {
         // User-defined operators are not yet handled.
         Map map = map();
@@ -1031,12 +1027,12 @@ class RelJson {
         return map;
     }
 
-    /** */
+    /**  */
     private Object toJson(ByteString val) {
         return val.toString();
     }
 
-    /** */
+    /**  */
     private Object toJson(SearchBounds val) {
         Map map = map();
         map.put("type", val.type().name());

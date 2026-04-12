@@ -41,6 +41,9 @@ final class StreamWindowPartition<Row> extends WindowPartitionBase<Row> {
     private List<WindowFunctionWrapper<Row>> accumulators;
 
     /** */
+    private Object[] accResults;
+
+    /** */
     StreamWindowPartition(
         Comparator<Row> peerCmp,
         Supplier<List<WindowFunctionWrapper<Row>>> accFactory,
@@ -58,12 +61,12 @@ final class StreamWindowPartition<Row> extends WindowPartitionBase<Row> {
 
     /** {@inheritDoc} */
     @Override public void drainTo(RowHandler.RowFactory<Row> factory, Collection<Row> output) {
-        if (currRow == null) {
+        if (currRow == null)
             return;
-        }
 
         if (accumulators == null) {
             accumulators = createWrappers();
+            accResults = new Object[accumulators.size()];
         }
 
         rowIdx++;
@@ -71,9 +74,8 @@ final class StreamWindowPartition<Row> extends WindowPartitionBase<Row> {
             peerIdx++;
 
         int accIdx = 0;
-        Object[] accResults = new Object[accumulators.size()];
         for (WindowFunctionWrapper<Row> acc : accumulators) {
-            Object accResult = acc.call(currRow, rowIdx, peerIdx);
+            Object accResult = acc.callStreaming(currRow, rowIdx, peerIdx);
             accResults[accIdx++] = accResult;
         }
 

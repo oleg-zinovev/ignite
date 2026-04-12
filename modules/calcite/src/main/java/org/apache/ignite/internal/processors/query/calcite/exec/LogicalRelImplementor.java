@@ -962,7 +962,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
 
         List<AggregateCall> aggCalls = rel.getGroup().getAggregateCalls(rel);
         Supplier<WindowPartition<Row>> frameFactory = expressionFactory.windowPartitionFactory(
-            rel.getGroup(), aggCalls, inputType, rel.isStreaming());
+            rel.getGroup(), aggCalls, inputType);
 
         RowFactory<Row> rowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), outType);
 

@@ -147,17 +147,15 @@ public class ExpressionFactoryImpl<Row> implements ExpressionFactory<Row> {
         return new AccumulatorsFactory<>(ctx, type, calls, rowType);
     }
 
-
     /** {@inheritDoc} */
     @Override public Supplier<WindowPartition<Row>> windowPartitionFactory(
-        Window.Group group,
+        Window.Group grp,
         List<AggregateCall> calls,
-        RelDataType rowType,
-        boolean streaming
+        RelDataType rowType
     ) {
         assert !calls.isEmpty() : "Window aggregate calls should not be empty";
 
-        return new WindowPartitionFactory<>(ctx, group, calls, rowType, streaming);
+        return new WindowPartitionFactory<>(ctx, grp, calls, rowType);
     }
 
     /** {@inheritDoc} */

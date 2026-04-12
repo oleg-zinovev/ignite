@@ -29,40 +29,50 @@ import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
 /** Factory to create {@link WindowPartitionBase} factory from {@link Window.Group}. */
 public final class WindowPartitionFactory<Row> implements Supplier<WindowPartition<Row>> {
+    /**  */
+    private final WindowFunctionFactory<Row> accFactory;
 
-    /** */
-    private final Supplier<WindowPartition<Row>> supplier;
+    /**  */
+    private final ExecutionContext<Row> ctx;
 
-    /** */
+    /**  */
+    private final Window.Group grp;
+
+    /**  */
+    private final RelDataType inputRowType;
+
+    /**  */
+    private final RowHandler.RowFactory<Row> aggRowFactory;
+
+    /**  */
+    private final Comparator<Row> peerCmp;
+
+    /**  */
     public WindowPartitionFactory(
         ExecutionContext<Row> ctx,
-        Window.Group group,
+        Window.Group grp,
         List<AggregateCall> calls,
-        RelDataType inputRowType,
-        boolean streaming
+        RelDataType inputRowType
     ) {
-        supplier = () -> {
-            List<RelDataType> aggTypes = Commons.transform(calls, AggregateCall::getType);
-            RowHandler.RowFactory<Row> aggRowFactory = ctx.rowHandler().factory(Commons.typeFactory(), aggTypes);
+        this.ctx = ctx;
+        this.grp = grp;
+        this.inputRowType = inputRowType;
 
-            Comparator<Row> peerCmp;
-            if (group.isRows)
-                // peer comparator in meaningless in rows frame.
-                peerCmp = null;
-            else
-                peerCmp = ctx.expressionFactory().comparator(group.collation());
-
-            WindowFunctionFactory<Row> accFactory = new WindowFunctionFactory<>(ctx, group, calls, inputRowType);
-            assert !streaming || (streaming && accFactory.isStreamable()) : "Streaming window partition desired, but buffering is required";
-            if (accFactory.isStreamable())
-                return new StreamWindowPartition<>(peerCmp, accFactory, aggRowFactory);
-            else
-                return new BufferingWindowPartition<>(peerCmp, accFactory, aggRowFactory, ctx, group, inputRowType);
-        };
+        List<RelDataType> aggTypes = Commons.transform(calls, AggregateCall::getType);
+        aggRowFactory = ctx.rowHandler().factory(Commons.typeFactory(), aggTypes);
+        if (grp.isRows)
+            // peer comparator in meaningless in rows frame.
+            peerCmp = null;
+        else
+            peerCmp = ctx.expressionFactory().comparator(grp.collation());
+        accFactory = new WindowFunctionFactory<>(ctx, grp, calls, inputRowType);
     }
 
     /** {@inheritDoc} */
     @Override public WindowPartition<Row> get() {
-        return supplier.get();
+        if (accFactory.isStreamable())
+            return new StreamWindowPartition<>(peerCmp, accFactory, aggRowFactory);
+        else
+            return new BufferingWindowPartition<>(peerCmp, accFactory, aggRowFactory, ctx, grp, inputRowType);
     }
 }

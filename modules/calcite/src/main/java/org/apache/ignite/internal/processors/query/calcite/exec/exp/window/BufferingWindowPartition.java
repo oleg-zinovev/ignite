@@ -35,18 +35,18 @@ final class BufferingWindowPartition<Row> extends WindowPartitionBase<Row> {
     /** Frame within partition. */
     private final WindowFunctionFrame<Row> frame;
 
-    /** */
+    /**  */
     BufferingWindowPartition(
         Comparator<Row> peerCmp,
         Supplier<List<WindowFunctionWrapper<Row>>> accFactory,
         RowHandler.RowFactory<Row> accRowFactory,
         ExecutionContext<Row> ctx,
-        Window.Group group,
+        Window.Group grp,
         RelDataType inputRowType
     ) {
         super(peerCmp, accFactory, accRowFactory);
         buf = new ArrayList<>();
-        frame = createFrame(ctx, peerCmp, group, inputRowType, buf);
+        frame = createFrame(ctx, peerCmp, grp, inputRowType, buf);
     }
 
     /** {@inheritDoc} */
@@ -57,25 +57,23 @@ final class BufferingWindowPartition<Row> extends WindowPartitionBase<Row> {
 
     /** {@inheritDoc} */
     @Override public void drainTo(RowHandler.RowFactory<Row> factory, Collection<Row> output) {
-        if (buf.isEmpty()) {
+        if (buf.isEmpty())
             return;
-        }
 
         List<WindowFunctionWrapper<Row>> accumulators = createWrappers();
+        Object[] accResults = new Object[accumulators.size()];
 
         int size = buf.size();
         Row prevRow = null;
         int peerIdx = -1;
         for (int rowIdx = 0; rowIdx < size; rowIdx++) {
             Row currRow = buf.get(rowIdx);
-            if (isNewPeer(currRow, prevRow)) {
+            if (isNewPeer(currRow, prevRow))
                 peerIdx++;
-            }
 
             int accIdx = 0;
-            Object[] accResults = new Object[accumulators.size()];
             for (WindowFunctionWrapper<Row> acc : accumulators) {
-                Object accResult = acc.call(currRow, rowIdx, peerIdx, frame);
+                Object accResult = acc.callBuffering(currRow, rowIdx, peerIdx, frame);
                 accResults[accIdx++] = accResult;
             }
 
@@ -98,11 +96,11 @@ final class BufferingWindowPartition<Row> extends WindowPartitionBase<Row> {
         Comparator<Row> peerCmp,
         Window.Group grp,
         RelDataType inputRowType,
-        List<Row> buffer
+        List<Row> buf
     ) {
         if (grp.isRows)
-            return new RowWindowPartitionFrame<>(buffer, ctx, grp, inputRowType);
+            return new RowWindowPartitionFrame<>(buf, ctx, grp, inputRowType);
         else
-            return new RangeWindowPartitionFrame<>(buffer, ctx, peerCmp, grp, inputRowType);
+            return new RangeWindowPartitionFrame<>(buf, ctx, peerCmp, grp, inputRowType);
     }
 }

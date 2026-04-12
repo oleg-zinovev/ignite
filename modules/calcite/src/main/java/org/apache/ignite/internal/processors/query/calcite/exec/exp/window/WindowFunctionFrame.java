@@ -23,17 +23,17 @@ import java.util.List;
 /** Rows frame for window function. */
 abstract class WindowFunctionFrame<Row> {
     /** Holds immutable refrence to buffered window partition rows. */
-    protected final List<Row> buffer;
+    protected final List<Row> buf;
 
     /** */
-    WindowFunctionFrame(List<Row> buffer) {
-        this.buffer = Collections.unmodifiableList(buffer);
+    WindowFunctionFrame(List<Row> buf) {
+        this.buf = Collections.unmodifiableList(buf);
     }
 
     /** Returns row from partition by index. */
     Row get(int idx) {
-        assert idx >= 0 && idx < buffer.size() : "Invalid row index";
-        return buffer.get(idx);
+        assert idx >= 0 && idx < buf.size() : "Invalid row index";
+        return buf.get(idx);
     }
 
     /** Returns start frame index in partition for current row peer. */
@@ -58,7 +58,7 @@ abstract class WindowFunctionFrame<Row> {
 
     /** Returns row count in partition. */
     final int partitionSize() {
-        return buffer.size();
+        return buf.size();
     }
 
     /** Resets current frame. */

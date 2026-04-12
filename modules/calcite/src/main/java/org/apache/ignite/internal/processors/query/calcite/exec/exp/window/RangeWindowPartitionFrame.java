@@ -41,24 +41,23 @@ import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
 /** {@link WindowFunctionFrame} for RANGE clause. */
 final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
-
     /** Comparator for determining a peer's index within a partition. */
     private final Comparator<Row> peerCmp;
 
     /** Returns the row that marks the start of the frame. */
     private final Function<Row, Row> lowerBound;
 
-    /** */
+    /**  */
     private final boolean cacheableLowerBound;
 
     /** Returns the row that marks the end of the frame. */
     private final Function<Row, Row> upperBound;
 
-    /** */
+    /**  */
     private final boolean cacheableUpperBound;
 
     /** Total number of peers in the current partition. */
-    private int peerCount = -1;
+    private int peerCnt = -1;
 
     /** Cached peer idx for which the frame start row has been computed. */
     private int cachedStartPeerIdx = -1;
@@ -72,20 +71,20 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
     /** Cached end row idx of frame. */
     private int cachedEndIdx;
 
-    /** */
+    /**  */
     RangeWindowPartitionFrame(
-        List<Row> buffer,
+        List<Row> buf,
         ExecutionContext<Row> ctx,
         Comparator<Row> peerCmp,
-        Window.Group group,
+        Window.Group grp,
         RelDataType inputRowType
     ) {
-        super(buffer);
+        super(buf);
         this.peerCmp = peerCmp;
-        lowerBound = rangeBoundToProject(ctx, group.lowerBound, group.collation(), inputRowType);
-        cacheableLowerBound = isCacheableBound(group.lowerBound);
-        upperBound = rangeBoundToProject(ctx, group.upperBound, group.collation(), inputRowType);
-        cacheableUpperBound = isCacheableBound(group.upperBound);
+        lowerBound = rangeBoundToProject(ctx, grp.lowerBound, grp.collation(), inputRowType);
+        cacheableLowerBound = isCacheableBound(grp.lowerBound);
+        upperBound = rangeBoundToProject(ctx, grp.upperBound, grp.collation(), inputRowType);
+        cacheableUpperBound = isCacheableBound(grp.upperBound);
     }
 
     /** {@inheritDoc} */
@@ -99,7 +98,7 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
         if (lowerBoundRow == null)
             cachedStartIdx = 0;
         else
-            cachedStartIdx = bsearchLowerBound(lowerBoundRow, buffer);
+            cachedStartIdx = bsearchLowerBound(lowerBoundRow, buf);
 
         return cachedStartIdx;
     }
@@ -113,33 +112,32 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
 
         Row upperBoundRow = upperBound.apply(row);
         if (upperBoundRow == null)
-            cachedEndIdx = buffer.size() - 1;
+            cachedEndIdx = buf.size() - 1;
         else
-            cachedEndIdx = bsearchUpperBound(upperBoundRow, buffer);
+            cachedEndIdx = bsearchUpperBound(upperBoundRow, buf);
 
         return cachedEndIdx;
     }
 
     /** {@inheritDoc} */
     @Override int countPeers() {
-        if (peerCount == -1) {
-            int size = buffer.size();
+        if (peerCnt == -1) {
+            int size = buf.size();
             if (size == 0)
-                peerCount = 0;
+                peerCnt = 0;
             else {
-                peerCount = 1;
-                Row prevRow = buffer.get(0);
+                peerCnt = 1;
+                Row prevRow = buf.get(0);
                 for (int i = 1; i < size; i++) {
-                    Row currRow = buffer.get(i);
-                    if (compareRowPeer(prevRow, currRow) != 0) {
-                        peerCount++;
-                    }
+                    Row currRow = buf.get(i);
+                    if (compareRowPeer(prevRow, currRow) != 0)
+                        peerCnt++;
                     prevRow = currRow;
                 }
             }
         }
 
-        return peerCount;
+        return peerCnt;
     }
 
     /** {@inheritDoc} */
@@ -147,23 +145,22 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
         // Reseting index cache.
         cachedStartPeerIdx = -1;
         cachedEndPeerIdx = -1;
-        peerCount = -1;
+        peerCnt = -1;
     }
 
-    /** Binary search of lower bound */
-    private int bsearchLowerBound(Row row, List<Row> buffer) {
+    /** Binary search of lower bound. */
+    private int bsearchLowerBound(Row row, List<Row> buf) {
         int start = 0;
-        int end = buffer.size() - 1;
+        int end = buf.size() - 1;
 
         while (start <= end) {
             int mid = (start + end) / 2;
 
-            Row midRow = buffer.get(mid);
+            Row midRow = buf.get(mid);
             int cmp = compareRowPeer(midRow, row);
 
-            if (cmp == 0) {
+            if (cmp == 0)
                 end = mid - 1;
-            }
             else if (cmp > 0)
                 end = mid - 1;
             else
@@ -173,20 +170,19 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
         return start;
     }
 
-    /** Binary search of upper bound */
-    private int bsearchUpperBound(Row row, List<Row> buffer) {
+    /** Binary search of upper bound. */
+    private int bsearchUpperBound(Row row, List<Row> buf) {
         int start = 0;
-        int end = buffer.size() - 1;
+        int end = buf.size() - 1;
 
         while (start <= end) {
             int mid = (start + end) / 2;
 
-            Row midRow = buffer.get(mid);
+            Row midRow = buf.get(mid);
             int cmp = compareRowPeer(midRow, row);
 
-            if (cmp == 0) {
+            if (cmp == 0)
                 start = mid + 1;
-            }
             else if (cmp > 0)
                 end = mid - 1;
             else
@@ -196,13 +192,13 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
         return end;
     }
 
-    /** */
+    /**  */
     private int compareRowPeer(Row row1, Row row2) {
         // in case peerCmp is not set - all rows has one peer
         return peerCmp == null ? 0 : peerCmp.compare(row1, row2);
     }
 
-    /** Creatre projection for range frame bound */
+    /** Create projection for range frame bound. */
     private static <Row> Function<Row, Row> rangeBoundToProject(
         ExecutionContext<Row> ctx,
         RexWindowBound bound,
@@ -226,23 +222,20 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
             RexBuilder builder = new IgniteRexBuilder(typeFactory);
 
             List<RexNode> project = new ArrayList<>(rowType.getFieldCount());
-            for (int i = 0; i < rowType.getFieldCount(); i++) {
+            for (int i = 0; i < rowType.getFieldCount(); i++)
                 project.add(builder.makeInputRef(fields.get(i).getType(), i));
-            }
 
             RexNode offset = bound.getOffset();
             if ((bound.isPreceding() && !field.direction.isDescending())
-                || (bound.isFollowing() && field.direction.isDescending())) {
-                // should invert offset.
+                || (bound.isFollowing() && field.direction.isDescending()))
+                // Should invert offset.
                 offset = builder.makeCall(SqlStdOperatorTable.UNARY_MINUS, ImmutableList.of(offset));
-            }
 
             SqlOperator operator = SqlStdOperatorTable.PLUS;
             RelDataType fieldType = fields.get(fieldIdx).getType();
             if (SqlTypeFamily.DATETIME.contains(fieldType)
-                && SqlTypeFamily.DATETIME_INTERVAL.contains(offset.getType())) {
+                && SqlTypeFamily.DATETIME_INTERVAL.contains(offset.getType()))
                 operator = SqlStdOperatorTable.DATETIME_PLUS;
-            }
 
             RexNode call = builder.makeCall(operator, ImmutableList.of(project.get(fieldIdx), offset));
             call = builder.makeCast(fieldType, call);

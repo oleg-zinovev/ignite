@@ -29,7 +29,6 @@ import org.jetbrains.annotations.NotNull;
 
 /** */
 public class AccumulatorsFactory<Row> extends AccumulatorsFactoryBase<Row> implements Supplier<List<AccumulatorWrapper<Row>>> {
-
     /** */
     private final ExecutionContext<Row> ctx;
 
@@ -93,7 +92,7 @@ public class AccumulatorsFactory<Row> extends AccumulatorsFactoryBase<Row> imple
             if (accFactory != null)
                 return accFactory.get();
 
-            // init factory and adapters
+            // Init factory and adapters.
             accFactory = Accumulators.accumulatorFactory(call, ctx);
             Accumulator<Row> accumulator = accFactory.get();
 

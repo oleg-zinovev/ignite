@@ -25,7 +25,6 @@ import org.jetbrains.annotations.Nullable;
 
 /** Base implementation of window partition. */
 abstract class WindowPartitionBase<Row> implements WindowPartition<Row> {
-
     /** Comparator for computing the peer index. */
     private final Comparator<Row> peerCmp;
 
@@ -52,18 +51,18 @@ abstract class WindowPartitionBase<Row> implements WindowPartition<Row> {
     }
 
     /** Compares two rows and return true if current row peer not equal to the previous row peer. */
-    protected final boolean isNewPeer(Row current, @Nullable Row previous) {
-        if (previous == null)
+    protected final boolean isNewPeer(Row cur, @Nullable Row prev) {
+        if (prev == null)
             return true;
         else if (peerCmp != null)
-            return peerCmp.compare(previous, current) != 0;
+            return peerCmp.compare(prev, cur) != 0;
         else
             return false;
     }
 
     /** Creates row with window function results. */
-    protected final Row createResultRow(RowHandler.RowFactory<Row> rowFactory, Row source, Object... results) {
+    protected final Row createResultRow(RowHandler.RowFactory<Row> rowFactory, Row src, Object... results) {
         Row resultsRow = accRowFactory.create(results);
-        return rowFactory.handler().concat(source, resultsRow);
+        return rowFactory.handler().concat(src, resultsRow);
     }
 }

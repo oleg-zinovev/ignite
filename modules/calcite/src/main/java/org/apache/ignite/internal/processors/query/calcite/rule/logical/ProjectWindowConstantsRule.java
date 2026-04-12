@@ -46,15 +46,15 @@ import org.immutables.value.Value;
  */
 @Value.Enclosing
 public class ProjectWindowConstantsRule extends RelRule<ProjectWindowConstantsRule.Config> implements TransformationRule {
-    /** */
+    /**  */
     public static final ProjectWindowConstantsRule INSTANCE = new ProjectWindowConstantsRule(ProjectWindowConstantsRule.Config.DEFAULT);
 
-    /** */
+    /**  */
     private ProjectWindowConstantsRule(Config cfg) {
         super(cfg);
     }
 
-    /** */
+    /**  */
     @Override public void onMatch(RelOptRuleCall call) {
         LogicalWindow window = call.rel(0);
         assert !window.constants.isEmpty();
@@ -91,15 +91,15 @@ public class ProjectWindowConstantsRule extends RelRule<ProjectWindowConstantsRu
         RelDataTypeFactory.Builder builder = typeFactory.builder();
 
         for (int i = 0; i < inputFieldCnt; i++) {
-            // add fields from original input, passed through window rel
+            // Add fields from original input, passed through window rel.
             builder.add(windowFields.get(i));
         }
         for (int i = inputFieldCnt; i < newInputFields.size(); i++) {
-            // add constants from new input
+            // Add constants from new input.
             builder.add(newInputFields.get(i));
         }
         for (int i = inputFieldCnt; i < windowFields.size(); i++) {
-            // add fields, provided by window
+            // Add fields, provided by window.
             builder.add(windowFields.get(i));
         }
 
@@ -122,11 +122,12 @@ public class ProjectWindowConstantsRule extends RelRule<ProjectWindowConstantsRu
                 );
                 newGrps.add(newGrp);
             }
-            else newGrps.add(grp);
+            else
+                newGrps.add(grp);
         }
 
-        // agg calls in the original window allready reference fields by index,
-        // do not need to remap it
+        // Agg calls in the original window allready reference fields by index,
+        // do not need to remap it.
         return LogicalWindow.create(window.getTraitSet(), newInput, ImmutableList.of(), type, newGrps.build());
     }
 
@@ -138,12 +139,10 @@ public class ProjectWindowConstantsRule extends RelRule<ProjectWindowConstantsRu
 
         RexBuilder rexBuilder = window.getCluster().getRexBuilder();
         List<RexNode> projects = new ArrayList<>(windowFieldCnt);
-        for (int i = 0; i < inputFieldCnt; i++) {
+        for (int i = 0; i < inputFieldCnt; i++)
             projects.add(rexBuilder.makeInputRef(newWindow, i));
-        }
-        for (int i = inputFieldCnt; i < windowFieldCnt; i++) {
+        for (int i = inputFieldCnt; i < windowFieldCnt; i++)
             projects.add(rexBuilder.makeInputRef(newWindow, i + constantCnt));
-        }
 
         RelBuilder relBldr = relBuilderFactory.create(newWindow.getCluster(), null);
         relBldr.push(newWindow);
@@ -151,7 +150,7 @@ public class ProjectWindowConstantsRule extends RelRule<ProjectWindowConstantsRu
         return relBldr.build();
     }
 
-    /** Replace provided input ref with a window constatn, if possible */
+    /** Replace provided input ref with a window constant, if possible. */
     private RexWindowBound replaceInputRefWithConst(RexWindowBound bound, int constantStartIdx, LogicalWindow window) {
         assert !bound.isUnbounded() && !bound.isCurrentRow() && bound.getOffset() instanceof RexInputRef;
         assert bound.isPreceding() || bound.isFollowing();
@@ -170,7 +169,7 @@ public class ProjectWindowConstantsRule extends RelRule<ProjectWindowConstantsRu
     /** Rule configuration. */
     @Value.Immutable
     public interface Config extends RelRule.Config {
-        /** */
+        /**  */
         ProjectWindowConstantsRule.Config DEFAULT = ImmutableProjectWindowConstantsRule.Config.of()
             .withOperandSupplier(b -> b.operand(LogicalWindow.class)
                 .predicate(it -> !it.constants.isEmpty())

@@ -38,7 +38,6 @@ import static org.apache.calcite.sql.type.SqlTypeName.INTEGER;
 
 /** */
 public final class WindowFunctions {
-
     /** Check window group can be processed with streaming partition. */
     public static boolean streamable(Window.Group group) {
         // Can execute window streaming in case:
@@ -124,7 +123,6 @@ public final class WindowFunctions {
 
     /** */
     private abstract static class AbstractWindowFunction<Row> {
-
         /** */
         private final RowHandler<Row> hnd;
 
@@ -192,9 +190,8 @@ public final class WindowFunctions {
             else {
                 Row offsetRow = frame.get(idx);
                 Object val = get(0, offsetRow);
-                if (val == null) {
+                if (val == null)
                     val = getDefault(row);
-                }
                 return val;
             }
         }
@@ -209,12 +206,10 @@ public final class WindowFunctions {
 
             ImmutableList.Builder<RelDataType> builder = ImmutableList.builderWithExpectedSize(argSize);
             builder.add(typeFactory.createTypeWithNullability(typeFactory.createSqlType(ANY), true));
-            if (argSize > 1) {
+            if (argSize > 1)
                 builder.add(typeFactory.createTypeWithNullability(typeFactory.createSqlType(INTEGER), false));
-            }
-            if (argSize > 2) {
+            if (argSize > 2)
                 builder.add(typeFactory.createTypeWithNullability(typeFactory.createSqlType(ANY), true));
-            }
             return builder.build();
         }
 
@@ -226,7 +221,6 @@ public final class WindowFunctions {
 
     /** ROW_NUMBER window function implementation. */
     private static class RowNumber<Row> extends AbstractWindowFunction<Row> implements StreamWindowFunction<Row> {
-
         /** */
         private RowNumber(RowHandler<Row> hnd, AggregateCall aggCall) {
             super(hnd, aggCall);
@@ -288,7 +282,6 @@ public final class WindowFunctions {
 
     /** DENSE_RANK window function implementation. */
     private static class DenseRank<Row> extends AbstractWindowFunction<Row> implements StreamWindowFunction<Row> {
-
         /** */
         private DenseRank(RowHandler<Row> hnd, AggregateCall aggCall) {
             super(hnd, aggCall);
@@ -312,7 +305,6 @@ public final class WindowFunctions {
 
     /** PERCENT_RANK window function implementation. */
     private static class PercentRank<Row> extends AbstractWindowFunction<Row> implements WindowFunction<Row> {
-
         /** */
         private final Rank<Row> rank;
 
@@ -346,7 +338,6 @@ public final class WindowFunctions {
 
     /** CUME_DIST window function implementation. */
     private static class CumeDist<Row> extends AbstractWindowFunction<Row> implements WindowFunction<Row> {
-
         /** */
         private CumeDist(RowHandler<Row> hnd, AggregateCall aggCall) {
             super(hnd, aggCall);
@@ -371,7 +362,6 @@ public final class WindowFunctions {
 
     /** LAG window function implementation. */
     private static class Lag<Row> extends AbstractLagLeadWindowFunction<Row> {
-
         /** */
         private Lag(RowHandler<Row> hnd, AggregateCall aggCall) {
             super(hnd, aggCall);
@@ -385,7 +375,6 @@ public final class WindowFunctions {
 
     /** LEAD window function implementation. */
     private static class Lead<Row> extends AbstractLagLeadWindowFunction<Row> {
-
         /** */
         private Lead(RowHandler<Row> hnd, AggregateCall aggCall) {
             super(hnd, aggCall);
@@ -399,7 +388,6 @@ public final class WindowFunctions {
 
     /** FIRST_VALUE window function implementation. */
     private static class FirstValue<Row> extends AbstractWindowFunction<Row> implements WindowFunction<Row> {
-
         /** */
         private FirstValue(RowHandler<Row> hnd, AggregateCall aggCall) {
             super(hnd, aggCall);
@@ -454,7 +442,6 @@ public final class WindowFunctions {
 
     /** NTILE window function implementation. */
     private static class NTile<Row> extends AbstractWindowFunction<Row> implements WindowFunction<Row> {
-
         /** */
         private NTile(RowHandler<Row> hnd, AggregateCall aggCall) {
             super(hnd, aggCall);
@@ -492,7 +479,6 @@ public final class WindowFunctions {
 
     /** NTH_VALUE window function implementation. */
     private static class NthValue<Row> extends AbstractWindowFunction<Row> implements WindowFunction<Row> {
-
         /** */
         private NthValue(RowHandler<Row> hnd, AggregateCall aggCall) {
             super(hnd, aggCall);
@@ -501,9 +487,8 @@ public final class WindowFunctions {
         /** {@inheritDoc} */
         @Override public Object call(Row row, int rowIdx, int peerIdx, WindowFunctionFrame<Row> frame) {
             int offset = get(1, row);
-            if (offset < 1) {
+            if (offset < 1)
                 throw new IllegalArgumentException("Offset must be at least 1.");
-            }
 
             int startIdx = frame.getFrameStart(row, rowIdx, peerIdx);
             int endIdx = frame.getFrameEnd(row, rowIdx, peerIdx);

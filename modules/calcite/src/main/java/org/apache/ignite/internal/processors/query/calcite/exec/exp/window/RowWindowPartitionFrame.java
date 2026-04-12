@@ -35,14 +35,12 @@ import static org.apache.calcite.sql.type.SqlTypeName.INTEGER;
 
 /** {@link WindowFunctionFrame} for ROWS clause. */
 final class RowWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
-
     /** Returns the offset that marks the start of the frame. */
     private final Function<Row, Integer> lowerBoundOffset;
 
     /** Returns the offset that marks the end of the frame. */
     private final Function<Row, Integer> upperBoundOffset;
 
-    // cache for row offset
     /** Cached row idx for which the frame start offset has been computed. */
     private int cachedStartRowIdx = -1;
 
@@ -57,14 +55,14 @@ final class RowWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
 
     /** */
     RowWindowPartitionFrame(
-        List<Row> buffer,
+        List<Row> buf,
         ExecutionContext<Row> ctx,
-        Window.Group group,
+        Window.Group grp,
         RelDataType inputRowType
     ) {
-        super(buffer);
-        lowerBoundOffset = rowsBoundToOffset(ctx, group.lowerBound, inputRowType);
-        upperBoundOffset = rowsBoundToOffset(ctx, group.upperBound, inputRowType);
+        super(buf);
+        lowerBoundOffset = rowsBoundToOffset(ctx, grp.lowerBound, inputRowType);
+        upperBoundOffset = rowsBoundToOffset(ctx, grp.upperBound, inputRowType);
     }
 
     /** {@inheritDoc} */
@@ -77,7 +75,7 @@ final class RowWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
         if (cachedStartOffset == null)
             return 0;
         else {
-            int idx = applyOffset(rowIdx, cachedStartOffset, buffer.size() - 1);
+            int idx = applyOffset(rowIdx, cachedStartOffset, buf.size() - 1);
             return Math.max(idx, 0);
         }
     }
@@ -90,9 +88,9 @@ final class RowWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
         }
 
         if (cachedEndOffset == null)
-            return buffer.size() - 1;
+            return buf.size() - 1;
         else
-            return applyOffset(rowIdx, cachedEndOffset, buffer.size() - 1);
+            return applyOffset(rowIdx, cachedEndOffset, buf.size() - 1);
     }
 
     /** {@inheritDoc} */
@@ -113,7 +111,7 @@ final class RowWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
         return Math.max(Math.min(idx, cap), -1);
     }
 
-    /** Creatre projection for range frame bound */
+    /** Create projection for range frame bound. */
     private static <Row> Function<Row, Integer> rowsBoundToOffset(
         ExecutionContext<Row> ctx,
         RexWindowBound bound,

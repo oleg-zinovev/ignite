@@ -81,7 +81,7 @@ public class WindowConverterRule extends AbstractIgniteConverterRule<LogicalWind
 
             result = convert(result, inTraits);
 
-            // add fields added by current group.
+            // Add fields added by current group.
             // see org.apache.calcite.rel.logical.LogicalWindow#create
             String grpFieldPrefix = "w" + grpIdx + "$";
             List<RelDataTypeField> fieldsAddedByCurGrp = U.arrayList(window.getRowType().getFieldList(),
@@ -144,9 +144,10 @@ public class WindowConverterRule extends AbstractIgniteConverterRule<LogicalWind
     public static RelCollation mergeCollations(RelCollation collation0, RelCollation collation1) {
         ImmutableBitSet keys = ImmutableBitSet.of(collation0.getKeys());
         List<RelFieldCollation> fields = U.arrayList(collation0.getFieldCollations());
-        for (RelFieldCollation it : collation1.getFieldCollations())
+        for (RelFieldCollation it : collation1.getFieldCollations()) {
             if (!keys.get(it.getFieldIndex()))
                 fields.add(it);
+        }
         return RelCollations.of(fields);
     }
 }

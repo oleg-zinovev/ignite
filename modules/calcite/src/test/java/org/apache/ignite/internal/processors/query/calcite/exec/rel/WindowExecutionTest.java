@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Stream;
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -52,7 +51,6 @@ import org.junit.runners.Parameterized;
  *
  */
 public class WindowExecutionTest extends AbstractExecutionTest {
-
     /** */
     private static final int TEST_GRP_PARAM_NUM = LAST_PARAM_NUM + 1;
 
@@ -215,11 +213,8 @@ public class WindowExecutionTest extends AbstractExecutionTest {
         );
 
         for (Object[] newParam : newParams) {
-            for (Object[] inheritedParam : AbstractExecutionTest.parameters()) {
-                Object[] both = Stream.concat(Arrays.stream(inheritedParam), Arrays.stream(newParam))
-                    .toArray(Object[]::new);
-                extraParams.add(both);
-            }
+            for (Object[] inheritedParam : parameters())
+                extraParams.add(F.concat(inheritedParam, newParam));
         }
 
         return extraParams;
@@ -232,7 +227,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
 
         IgniteTypeFactory tf = ctx.getTypeFactory();
         RelDataType inputRowType = TypeUtils.createRowType(tf, int.class, int.class, int.class);
-        Class<?>[] outFields = new Class<?>[3 + testGrp.aggCalls.size()];
+        Class<?>[] outFields = new Class<?>[inputRowType.getFieldCount() + testGrp.aggCalls.size()];
         Arrays.fill(outFields, int.class);
         RelDataType outRowType = TypeUtils.createRowType(tf, outFields);
         ScanNode<Object[]> scan = new ScanNode<>(ctx, inputRowType, Arrays.asList(
@@ -269,7 +264,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             ctx,
             outRowType,
             partCmp,
-            ctx.expressionFactory().windowPartitionFactory(testGrp, calls, inputRowType, testStream),
+            ctx.expressionFactory().windowPartitionFactory(testGrp, calls, inputRowType),
             rowFactory()
         );
 
@@ -281,9 +276,8 @@ public class WindowExecutionTest extends AbstractExecutionTest {
         for (int i = 0; i < testRes.size(); i++) {
             assertTrue(root.hasNext());
             Object[] row = root.next();
-            for (int j = 0; j < testRes.get(i).size(); j++) {
-                assertEquals(testRes.get(i).get(j), row[3 + j]);
-            }
+            for (int j = 0; j < testRes.get(i).size(); j++)
+                assertEquals(testRes.get(i).get(j), row[inputRowType.getFieldCount() + j]);
         }
         assertFalse(root.hasNext());
     }
