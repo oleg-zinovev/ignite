@@ -21,16 +21,17 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridComponent;
+import org.apache.ignite.internal.Order;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.marshaller.Marshaller;
+import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.discovery.DiscoveryDataBag;
 
 import static org.apache.ignite.internal.GridComponent.DiscoveryDataExchangeType.CONTINUOUS_PROC;
@@ -39,30 +40,39 @@ import static org.apache.ignite.internal.GridComponent.DiscoveryDataExchangeType
  * Carries discovery data in marshalled form
  * and allows convenient way of converting it to and from {@link DiscoveryDataBag} objects.
  */
-public class DiscoveryDataPacket implements Serializable {
-    /** Local file header signature(read as a little-endian number). */
-    private static int ZIP_HEADER_SIGNATURE = 0x04034b50;
+public class DiscoveryDataPacket implements Serializable, Message {
+    /** Local file header signature (read as a little-endian number). */
+    private static final int ZIP_HEADER_SIGNATURE = 0x04034b50;
 
     /** */
     private static final long serialVersionUID = 0L;
 
     /** */
-    private final UUID joiningNodeId;
+    @Order(0)
+    UUID joiningNodeId;
 
     /** */
-    private Map<Integer, byte[]> joiningNodeData = new HashMap<>();
+    @Order(1)
+    Map<Integer, byte[]> joiningNodeData = new HashMap<>();
 
     /** */
     private transient Map<Integer, Serializable> unmarshalledJoiningNodeData;
 
     /** */
-    private Map<Integer, byte[]> commonData = new HashMap<>();
+    @Order(2)
+    Map<Integer, byte[]> commonData = new HashMap<>();
 
     /** */
-    private Map<UUID, Map<Integer, byte[]>> nodeSpecificData = new LinkedHashMap<>();
+    @Order(3)
+    Map<UUID, Map<Integer, byte[]>> nodeSpecificData = new HashMap<>();
 
     /** */
     private transient boolean joiningNodeClient;
+
+    /** Constructor. */
+    public DiscoveryDataPacket() {
+        // No-op.
+    }
 
     /**
      * @param joiningNodeId Joining node id.
@@ -310,7 +320,7 @@ public class DiscoveryDataPacket implements Serializable {
      * @param clientNode Client node.
      * @param log Logger.
      * @param panic Throw unmarshalling if {@code true}.
-     * @throws IgniteCheckedException If {@code panic} is {@true} and unmarshalling failed.
+     * @throws IgniteCheckedException If {@code panic} is {@code True} and unmarshalling failed.
      */
     private Map<Integer, Serializable> unmarshalData(
         Map<Integer, byte[]> src,
@@ -358,11 +368,11 @@ public class DiscoveryDataPacket implements Serializable {
     }
 
     /**
-     * @param value Value to check.
+     * @param val Value to check.
      * @return {@code true} if value is zipped.
      */
-    private boolean isZipped(byte[] value) {
-        return value != null && value.length > 3 && makeInt(value) == ZIP_HEADER_SIGNATURE;
+    private boolean isZipped(byte[] val) {
+        return val != null && val.length > 3 && makeInt(val) == ZIP_HEADER_SIGNATURE;
     }
 
     /**
@@ -391,7 +401,7 @@ public class DiscoveryDataPacket implements Serializable {
             int compressionLevel,
             IgniteLogger log
     ) {
-        //may happen if nothing was collected from components,
+        // may happen if nothing was collected from components,
         // corresponding map (for common data or for node specific data) left null
         if (src == null)
             return;
@@ -407,9 +417,7 @@ public class DiscoveryDataPacket implements Serializable {
         }
     }
 
-    /**
-     * TODO https://issues.apache.org/jira/browse/IGNITE-4435
-     */
+    /** */
     private void filterDuplicatedData(Map<Integer, byte[]> discoData) {
         for (Map<Integer, byte[]> existingData : nodeSpecificData.values()) {
             Iterator<Map.Entry<Integer, byte[]>> it = discoData.entrySet().iterator();
@@ -454,4 +462,5 @@ public class DiscoveryDataPacket implements Serializable {
     public void clearUnmarshalledJoiningNodeData() {
         unmarshalledJoiningNodeData = null;
     }
+
 }

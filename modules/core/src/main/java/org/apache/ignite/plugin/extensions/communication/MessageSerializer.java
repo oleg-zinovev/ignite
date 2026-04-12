@@ -17,29 +17,25 @@
 
 package org.apache.ignite.plugin.extensions.communication;
 
-import java.nio.ByteBuffer;
-
 /**
  * Interface for message serialization logic.
  */
-public interface MessageSerializer {
+public interface MessageSerializer<M extends Message> {
     /**
      * Writes this message to provided byte buffer.
      *
      * @param msg Message instance.
-     * @param buf Byte buffer.
      * @param writer Writer.
      * @return Whether message was fully written.
      */
-    public boolean writeTo(Message msg, ByteBuffer buf, MessageWriter writer);
+    public boolean writeTo(M msg, MessageWriter writer);
 
     /**
      * Reads this message from provided byte buffer.
      *
      * @param msg Message instance.
-     * @param buf Byte buffer.
      * @param reader Reader.
      * @return Whether message was fully read.
      */
-    public boolean readFrom(Message msg, ByteBuffer buf, MessageReader reader);
+    public boolean readFrom(M msg, MessageReader reader);
 }

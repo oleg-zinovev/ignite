@@ -61,9 +61,9 @@ import org.apache.ignite.internal.processors.query.calcite.type.IgniteTypeFactor
 import org.apache.ignite.internal.processors.query.calcite.type.IgniteTypeSystem;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.processors.security.NoOpIgniteSecurityProcessor;
+import org.apache.ignite.internal.thread.pool.IgniteStripedThreadPoolExecutor;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.testframework.junits.GridTestKernalContext;
-import org.apache.ignite.thread.IgniteStripedThreadPoolExecutor;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -353,7 +353,8 @@ public class PlanExecutionTest extends AbstractPlannerTest {
             NoOpIoTracker.INSTANCE,
             0,
             Commons.parametersMap(ctx.parameters()),
-            null);
+            null
+        );
 
         return new LogicalRelImplementor<>(ectx, c -> r -> 0, mailboxRegistry, exchangeSvc,
             new TestFailureProcessor(kernal)).go(fragment.root());

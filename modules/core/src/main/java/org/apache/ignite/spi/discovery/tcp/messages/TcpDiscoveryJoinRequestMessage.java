@@ -17,6 +17,7 @@
 
 package org.apache.ignite.spi.discovery.tcp.messages;
 
+import org.apache.ignite.internal.Order;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.spi.discovery.tcp.internal.DiscoveryDataPacket;
 import org.apache.ignite.spi.discovery.tcp.internal.TcpDiscoveryNode;
@@ -32,10 +33,17 @@ public class TcpDiscoveryJoinRequestMessage extends TcpDiscoveryAbstractTraceabl
     private static final long serialVersionUID = 0L;
 
     /** New node that wants to join the topology. */
-    private final TcpDiscoveryNode node;
+    @Order(0)
+    TcpDiscoveryNode node;
 
     /** Discovery data container. */
-    private final DiscoveryDataPacket dataPacket;
+    @Order(1)
+    DiscoveryDataPacket dataPacket;
+
+    /** Constructor. */
+    public TcpDiscoveryJoinRequestMessage() {
+        // No-op.
+    }
 
     /**
      * Constructor.
@@ -65,7 +73,7 @@ public class TcpDiscoveryJoinRequestMessage extends TcpDiscoveryAbstractTraceabl
     }
 
     /**
-     * @return {@code true} flag.
+     * @return Responded flag.
      */
     public boolean responded() {
         return getFlag(RESPONDED_FLAG_POS);
@@ -77,6 +85,7 @@ public class TcpDiscoveryJoinRequestMessage extends TcpDiscoveryAbstractTraceabl
     public void responded(boolean responded) {
         setFlag(RESPONDED_FLAG_POS, responded);
     }
+
 
     /** {@inheritDoc} */
     @Override public boolean equals(Object obj) {
@@ -95,4 +104,5 @@ public class TcpDiscoveryJoinRequestMessage extends TcpDiscoveryAbstractTraceabl
     @Override public String toString() {
         return S.toString(TcpDiscoveryJoinRequestMessage.class, this, "super", super.toString());
     }
+
 }

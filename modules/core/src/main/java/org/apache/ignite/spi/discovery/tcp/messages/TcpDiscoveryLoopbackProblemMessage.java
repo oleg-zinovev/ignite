@@ -19,21 +19,30 @@ package org.apache.ignite.spi.discovery.tcp.messages;
 
 import java.util.Collection;
 import java.util.UUID;
+import org.apache.ignite.internal.Order;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.plugin.extensions.communication.Message;
 
 /**
  * Message telling joining node that it has loopback problem (misconfiguration).
  * This means that remote node is configured to use loopback address, but joining node is not, or vise versa.
  */
-public class TcpDiscoveryLoopbackProblemMessage extends TcpDiscoveryAbstractMessage {
+public class TcpDiscoveryLoopbackProblemMessage extends TcpDiscoveryAbstractMessage implements Message {
     /** */
     private static final long serialVersionUID = 0L;
 
     /** Remote node addresses. */
-    private final Collection<String> addrs;
+    @Order(0)
+    Collection<String> addrs;
 
     /** Remote node host names. */
-    private final Collection<String> hostNames;
+    @Order(1)
+    Collection<String> hostNames;
+
+    /** */
+    public TcpDiscoveryLoopbackProblemMessage() {
+        // No-op.
+    }
 
     /**
      * Constructor.
@@ -68,4 +77,5 @@ public class TcpDiscoveryLoopbackProblemMessage extends TcpDiscoveryAbstractMess
     @Override public String toString() {
         return S.toString(TcpDiscoveryLoopbackProblemMessage.class, this, "super", super.toString());
     }
+
 }

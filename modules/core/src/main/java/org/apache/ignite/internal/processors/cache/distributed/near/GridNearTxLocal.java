@@ -37,6 +37,8 @@ import javax.cache.processor.EntryProcessor;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cache.ReadRepairStrategy;
 import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.failure.FailureContext;
+import org.apache.ignite.failure.FailureType;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
@@ -76,6 +78,7 @@ import org.apache.ignite.internal.processors.cache.transactions.TransactionProxy
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObject;
 import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.transactions.IgniteTxHeuristicCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxOptimisticCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
@@ -91,6 +94,7 @@ import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.internal.util.typedef.CX1;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -606,6 +610,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                 filters,
                 ret,
                 opCtx != null && opCtx.skipStore(),
+                opCtx != null && opCtx.skipReadThrough(),
                 keepBinary,
                 opCtx != null && opCtx.recovery(),
                 dataCenterId);
@@ -781,6 +786,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                 drMap,
                 null,
                 opCtx != null && opCtx.skipStore(),
+                opCtx != null && opCtx.skipReadThrough(),
                 false,
                 keepBinary,
                 opCtx != null && opCtx.recovery(),
@@ -880,6 +886,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
      * @param filter User filters.
      * @param ret Return value.
      * @param skipStore Skip store flag.
+     * @param skipReadThrough Skip read-through cache store flag.
      * @param recovery Recovery flag.
      * @param dataCenterId Optional data center Id.
      * @return Future for entry values loading.
@@ -896,6 +903,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
         final CacheEntryPredicate[] filter,
         final GridCacheReturn ret,
         boolean skipStore,
+        boolean skipReadThrough,
         boolean keepBinary,
         boolean recovery,
         Byte dataCenterId) {
@@ -933,6 +941,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                     ret,
                     /*enlisted*/null,
                     skipStore,
+                    skipReadThrough,
                     false,
                     hasFilters,
                     needVal,
@@ -999,6 +1008,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
      * @param drPutMap DR put map (optional).
      * @param drRmvMap DR remove map (optional).
      * @param skipStore Skip store flag.
+     * @param skipReadThrough Skip read-through cache store flag.
      * @param singleRmv {@code True} for single key remove operation ({@link Cache#remove(Object)}.
      * @param keepBinary Keep binary flag.
      * @param recovery Recovery flag.
@@ -1020,6 +1030,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
         @Nullable Map<KeyCacheObject, GridCacheDrInfo> drPutMap,
         @Nullable Map<KeyCacheObject, GridCacheVersion> drRmvMap,
         boolean skipStore,
+        boolean skipReadThrough,
         final boolean singleRmv,
         final boolean keepBinary,
         final boolean recovery,
@@ -1124,6 +1135,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                         ret,
                         enlisted,
                         skipStore,
+                        skipReadThrough,
                         singleRmv,
                         hasFilters,
                         needVal,
@@ -1195,6 +1207,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
      * @param ret Return value.
      * @param enlisted Enlisted keys collection.
      * @param skipStore Skip store flag.
+     * @param skipReadThrough Skip read-through cache store flag.
      * @param singleRmv {@code True} for single remove operation.
      * @param hasFilters {@code True} if filters not empty.
      * @param needVal {@code True} if value is needed.
@@ -1217,6 +1230,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
         final GridCacheReturn ret,
         @Nullable final Collection<KeyCacheObject> enlisted,
         boolean skipStore,
+        boolean skipReadThrough,
         boolean singleRmv,
         boolean hasFilters,
         final boolean needVal,
@@ -1336,6 +1350,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                                     drExpireTime,
                                     drVer,
                                     skipStore,
+                                    skipReadThrough,
                                     keepBinary,
                                     CU.isNearEnabled(cacheCtx));
                             }
@@ -1352,6 +1367,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                                     -1L,
                                     null,
                                     skipStore,
+                                    skipReadThrough,
                                     keepBinary,
                                     CU.isNearEnabled(cacheCtx));
                             }
@@ -1388,6 +1404,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                         drExpireTime,
                         drVer,
                         skipStore,
+                        skipReadThrough,
                         keepBinary,
                         CU.isNearEnabled(cacheCtx));
 
@@ -1507,6 +1524,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                     drExpireTime,
                     drVer,
                     skipStore,
+                    skipReadThrough,
                     keepBinary,
                     CU.isNearEnabled(cacheCtx));
 
@@ -1658,6 +1676,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
             null,
             drMap,
             opCtx != null && opCtx.skipStore(),
+            opCtx != null && opCtx.skipReadThrough(),
             singleRmv,
             keepBinary,
             opCtx != null && opCtx.recovery(),
@@ -1793,6 +1812,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
      * @param skipVals Skip values flag.
      * @param keepCacheObjects Keep cache objects
      * @param skipStore Skip store flag.
+     * @param skipReadThrough Skip read-through cache store flag.
      * @param readRepairStrategy Read Repair strategy.
      * @return Future for this get.
      */
@@ -1805,6 +1825,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
         final boolean skipVals,
         final boolean keepCacheObjects,
         final boolean skipStore,
+        final boolean skipReadThrough,
         final boolean recovery,
         final ReadRepairStrategy readRepairStrategy,
         final boolean needVer) {
@@ -1847,6 +1868,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                     skipVals,
                     keepCacheObjects,
                     skipStore,
+                    skipReadThrough,
                     recovery,
                     readRepairStrategy,
                     needVer);
@@ -2034,6 +2056,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                                                     null,
                                                     null,
                                                     skipStore,
+                                                    skipReadThrough,
                                                     !deserializeBinary,
                                                     recovery,
                                                     null);
@@ -2167,6 +2190,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
      * @param skipVals Skip values flag.
      * @param keepCacheObjects Keep cache objects flag.
      * @param skipStore Skip store flag.
+     * @param skipReadThrough Skip read-through cache store flag.
      * @param recovery Recovery flag.
      * @return Enlisted keys.
      * @throws IgniteCheckedException If failed.
@@ -2184,6 +2208,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
         boolean skipVals,
         boolean keepCacheObjects,
         boolean skipStore,
+        boolean skipReadThrough,
         boolean recovery,
         ReadRepairStrategy readRepairStrategy,
         final boolean needVer
@@ -2431,6 +2456,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                                     -1L,
                                     null,
                                     skipStore,
+                                    skipReadThrough,
                                     !deserializeBinary,
                                     CU.isNearEnabled(cacheCtx));
 
@@ -3189,6 +3215,10 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
 
                 U.warn(log, "Set transaction invalidation flag to true due to error [tx=" + this + ", err=" + err + ']');
             }
+
+            // Treat heuristic exception as critical.
+            if (X.hasCause(e, IgniteTxHeuristicCheckedException.class))
+                cctx.kernalContext().failure().process(new FailureContext(FailureType.CRITICAL_ERROR, e));
         }
 
         if (err != null) {
@@ -3380,6 +3410,11 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
             U.restoreDeploymentContext(cctx.kernalContext(), deploymentLdrId);
 
         fut.prepare();
+
+        // In case of one phase commit move state one step forward to prohibit tx rollback on timeout after send message
+        // to remote node.
+        if (onePhaseCommit)
+            state(PREPARED);
 
         return fut;
     }
@@ -3850,6 +3885,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
      * @param accessTtl Access ttl.
      * @param <K> Key type.
      * @param skipStore Skip store flag.
+     * @param skipReadThrough Skip read-through cache store flag.
      * @param keepBinary Keep binary flag.
      * @return Future with respond.
      */
@@ -3860,6 +3896,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
         long createTtl,
         long accessTtl,
         boolean skipStore,
+        boolean skipReadThrough,
         boolean keepBinary) {
         assert pessimistic();
 
@@ -3895,6 +3932,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
             createTtl,
             accessTtl,
             skipStore,
+            skipReadThrough,
             keepBinary);
 
         return new GridEmbeddedFuture<>(
@@ -4329,6 +4367,8 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
         if (timeout() > 0 && !implicit()) {
             if (remainingTime() == -1L) {
                 onTimeout();
+
+                cctx.tm().clearThreadMap(this);
 
                 throw new TransactionTimeoutException(
                     "Failed to start transaction. Transaction is timed out during initialization.");

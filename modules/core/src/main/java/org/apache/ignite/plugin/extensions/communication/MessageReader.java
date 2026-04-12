@@ -20,10 +20,12 @@ package org.apache.ignite.plugin.extensions.communication;
 import java.nio.ByteBuffer;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.CacheObject;
+import org.apache.ignite.internal.processors.cache.KeyCacheObject;
+import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.lang.IgniteUuid;
 
 /**
@@ -37,7 +39,10 @@ public interface MessageReader {
      *
      * @param buf Byte buffer.
      */
-    public void setBuffer(ByteBuffer buf);
+    @Deprecated
+    public default void setBuffer(ByteBuffer buf) {
+        // No-op.
+    }
 
     /**
      * Reads {@code byte} value.
@@ -192,38 +197,78 @@ public interface MessageReader {
      * @param <T> Type of the message.
      * @return Message.
      */
-    public <T extends Message> T readMessage();
+    public default <T extends Message> T readMessage() {
+        return readMessage(false);
+    }
+
+    /**
+     * Reads nested message.
+     *
+     * @param compress Whether message should be decompressed.
+     * @param <T> Type of the message.
+     * @return Message.
+     */
+    public <T extends Message> T readMessage(boolean compress);
+
+    /**
+     * Reads {@link CacheObject}.
+     *
+     * @return Cache object.
+     */
+    public CacheObject readCacheObject();
+
+    /**
+     * Reads {@link KeyCacheObject}.
+     *
+     * @return Key cache object.
+     */
+    public KeyCacheObject readKeyCacheObject();
+
+    /**
+     * Reads {@link GridLongList}.
+     *
+     * @return Grid long list.
+     */
+    public GridLongList readGridLongList();
 
     /**
      * Reads array of objects.
      *
-     * @param itemType Array component type.
-     * @param itemCls Array component class.
-     * @param <T> Type of the red object .
+     * @param type Array component type.
+     * @param <T> Type of the read object.
      * @return Array of objects.
      */
-    public <T> T[] readObjectArray(MessageCollectionItemType itemType, Class<T> itemCls);
+    public <T> T[] readObjectArray(MessageArrayType type);
 
     /**
-     * Reads collection.
+     * Reads any collection.
      *
-     * @param itemType Collection item type.
-     * @param <C> Type of the red collection.
+     * @param type Collection item type.
+     * @param <C> Type of the read collection.
      * @return Collection.
      */
-    public <C extends Collection<?>> C readCollection(MessageCollectionItemType itemType);
+    public <C extends Collection<?>> C readCollection(MessageCollectionType type);
 
     /**
      * Reads map.
      *
-     * @param keyType Map key type.
-     * @param valType Map value type.
-     * @param linked Whether {@link LinkedHashMap} should be created.
-     * @param <M> Type of the red map.
+     * @param type Map type.
+     * @param <M> Type of the read map.
      * @return Map.
      */
-    public <M extends Map<?, ?>> M readMap(MessageCollectionItemType keyType,
-        MessageCollectionItemType valType, boolean linked);
+    public default <M extends Map<?, ?>> M readMap(MessageMapType type) {
+        return readMap(type, false);
+    }
+
+    /**
+     * Reads map.
+     *
+     * @param type Map type.
+     * @param compress Whether map should be compressed.
+     * @param <M> Type of the read map.
+     * @return Map.
+     */
+    public <M extends Map<?, ?>> M readMap(MessageMapType type, boolean compress);
 
     /**
      * Tells whether last invocation of any of {@code readXXX(...)}
@@ -247,16 +292,21 @@ public interface MessageReader {
     public void incrementState();
 
     /**
-     * Callback called before inner message is read.
+     * Decrements read state.
      */
-    public void beforeInnerMessageRead();
+    public void decrementState();
 
     /**
-     * Callback called after inner message is read.
-     *
-     * @param finished Whether message was fully read.
+     * Callback called before nested object is read.
      */
-    public void afterInnerMessageRead(boolean finished);
+    public void beforeNestedRead();
+
+    /**
+     * Callback called after nested object is read.
+     *
+     * @param finished Whether object was fully read.
+     */
+    public void afterNestedRead(boolean finished);
 
     /**
      * Resets this reader.

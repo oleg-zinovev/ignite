@@ -29,6 +29,11 @@ public class StopRoutineDiscoveryMessage extends AbstractContinuousMessage {
     /** */
     private static final long serialVersionUID = 0L;
 
+    /** */
+    public StopRoutineDiscoveryMessage() {
+        // No-op.
+    }
+
     /**
      * @param routineId Routine id.
      */

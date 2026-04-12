@@ -80,22 +80,10 @@ class GridTestMessage implements Message, Externalizable {
     }
 
     /**
-     * @return Bytes.
-     */
-    public byte[] bytes() {
-        return bytes;
-    }
-
-    /**
      * @param bytes Bytes.
      */
     public void bytes(byte[] bytes) {
         this.bytes = bytes;
-    }
-
-    /** {@inheritDoc} */
-    @Override public void onAckReceived() {
-        // No-op.
     }
 
     /** {@inheritDoc} */
@@ -126,8 +114,4 @@ class GridTestMessage implements Message, Externalizable {
         return true;
     }
 
-    /** {@inheritDoc} */
-    @Override public short directType() {
-        return 0;
-    }
 }

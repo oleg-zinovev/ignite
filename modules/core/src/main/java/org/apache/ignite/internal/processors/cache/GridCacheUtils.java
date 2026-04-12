@@ -52,6 +52,7 @@ import org.apache.ignite.cache.CacheKeyConfiguration;
 import org.apache.ignite.cache.CachePartialUpdateException;
 import org.apache.ignite.cache.CacheServerNotFoundException;
 import org.apache.ignite.cache.QueryEntity;
+import org.apache.ignite.cache.affinity.AffinityFunction;
 import org.apache.ignite.cache.affinity.AffinityKeyMapped;
 import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.cache.store.CacheStoreSessionListener;
@@ -235,28 +236,18 @@ public class GridCacheUtils {
     public static final long EXPIRE_TIME_CALCULATE = -1L;
 
     /** Empty predicate array. */
-    private static final IgnitePredicate[] EMPTY = new IgnitePredicate[0];
+    private static final IgnitePredicate<?>[] EMPTY = new IgnitePredicate[0];
 
     /** Default transaction config. */
     private static final TransactionConfiguration DEFAULT_TX_CFG = new TransactionConfiguration();
 
     /** Empty predicate array. */
-    private static final IgnitePredicate[] EMPTY_FILTER = new IgnitePredicate[0];
-
-    /** Empty predicate array. */
     private static final CacheEntryPredicate[] EMPTY_FILTER0 = new CacheEntryPredicate[0];
 
     /** */
-    private static final CacheEntryPredicate ALWAYS_FALSE0 = new CacheEntrySerializablePredicate(
-        new CacheEntryPredicateAdapter() {
-            @Override public boolean apply(GridCacheEntryEx e) {
-                return false;
-            }
-        }
-    );
-
-    /** */
-    private static final CacheEntryPredicate[] ALWAYS_FALSE0_ARR = new CacheEntryPredicate[] {ALWAYS_FALSE0};
+    private static final CacheEntryPredicate[] ALWAYS_FALSE0_ARR = new CacheEntryPredicate[] {
+        new CacheEntryPredicateAdapter(CacheEntryPredicateType.ALWAYS_FALSE)
+    };
 
     /** Read filter. */
     public static final IgnitePredicate<IgniteTxEntry> READ_FILTER = new P1<IgniteTxEntry>() {
@@ -487,7 +478,7 @@ public class GridCacheUtils {
      * @return Empty filter.
      */
     public static <K, V> IgnitePredicate<Cache.Entry<K, V>>[] empty() {
-        return (IgnitePredicate<Cache.Entry<K, V>>[])EMPTY_FILTER;
+        return (IgnitePredicate<Cache.Entry<K, V>>[])EMPTY;
     }
 
     /**
@@ -728,7 +719,7 @@ public class GridCacheUtils {
         throws IgniteCheckedException {
         assert ctx != null;
 
-        return marshal(ctx.shared(), ctx.deploymentEnabled(), obj);
+        return marshal(ctx.shared(), false, obj);
     }
 
     /**
@@ -1647,12 +1638,38 @@ public class GridCacheUtils {
     }
 
     /**
+     * @return Default affinity function.
+     */
+    public static AffinityFunction createDefaultAffinity() {
+        return new RendezvousAffinityFunction();
+    }
+
+    /**
+     * @param parts Total number of partitions.
+     * @return Default affinity function with predefined parameters.
+     */
+    public static AffinityFunction createDefaultAffinity(int parts) {
+        return createDefaultAffinity(false, parts);
+    }
+
+    /**
+     * @param exclNeighbors {@code True} if nodes residing on the same host may not act as backups of each other.
+     * @param parts Total number of partitions.
+     * @return Default affinity function with predefined parametrers.
+     */
+    public static AffinityFunction createDefaultAffinity(boolean exclNeighbors, int parts) {
+        return new RendezvousAffinityFunction(exclNeighbors, parts);
+    }
+
+    /**
+     * @param log Logger.
      * @param cfg Initializes cache configuration with proper defaults.
      * @param cacheObjCtx Cache object context.
+     * @param recoveryMode Value of {@link GridKernalContext#recoveryMode()}.
      * @throws IgniteCheckedException If configuration is not valid.
      */
     public static void initializeConfigDefaults(IgniteLogger log, CacheConfiguration cfg,
-        CacheObjectContext cacheObjCtx) throws IgniteCheckedException {
+        CacheObjectContext cacheObjCtx, boolean recoveryMode) throws IgniteCheckedException {
         if (cfg.getCacheMode() == null)
             cfg.setCacheMode(DFLT_CACHE_MODE);
 
@@ -1660,15 +1677,10 @@ public class GridCacheUtils {
             cfg.setNodeFilter(CacheConfiguration.ALL_NODES);
 
         if (cfg.getAffinity() == null) {
-            if (cfg.getCacheMode() == PARTITIONED) {
-                RendezvousAffinityFunction aff = new RendezvousAffinityFunction();
-
-                cfg.setAffinity(aff);
-            }
+            if (cfg.getCacheMode() == PARTITIONED)
+                cfg.setAffinity(createDefaultAffinity());
             else {
-                RendezvousAffinityFunction aff = new RendezvousAffinityFunction(false, 512);
-
-                cfg.setAffinity(aff);
+                cfg.setAffinity(createDefaultAffinity(512));
 
                 cfg.setBackups(Integer.MAX_VALUE);
             }
@@ -1717,7 +1729,7 @@ public class GridCacheUtils {
 
         if (!F.isEmpty(entities)) {
             cfg.clearQueryEntities().setQueryEntities(
-                QueryUtils.normalizeQueryEntities(cacheObjCtx.kernalContext(), entities, cfg));
+                QueryUtils.normalizeQueryEntities(recoveryMode, entities, cfg));
         }
     }
 

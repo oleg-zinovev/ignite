@@ -47,7 +47,6 @@ import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.apache.calcite.sql.util.SqlShuttle;
-import org.apache.calcite.sql.validate.SqlValidator;
 import org.apache.calcite.sql2rel.SqlToRelConverter;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
@@ -98,6 +97,8 @@ import org.apache.ignite.internal.processors.query.calcite.prepare.CacheKey;
 import org.apache.ignite.internal.processors.query.calcite.prepare.ExplainPlan;
 import org.apache.ignite.internal.processors.query.calcite.prepare.FieldsMetadata;
 import org.apache.ignite.internal.processors.query.calcite.prepare.IgniteConvertletTable;
+import org.apache.ignite.internal.processors.query.calcite.prepare.IgniteSqlCallRewriteTable;
+import org.apache.ignite.internal.processors.query.calcite.prepare.IgniteSqlValidator;
 import org.apache.ignite.internal.processors.query.calcite.prepare.IgniteTypeCoercion;
 import org.apache.ignite.internal.processors.query.calcite.prepare.MultiStepPlan;
 import org.apache.ignite.internal.processors.query.calcite.prepare.PrepareServiceImpl;
@@ -190,7 +191,8 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
                 .withParserFactory(IgniteSqlParserImpl.FACTORY)
                 .withLex(Lex.ORACLE)
                 .withConformance(IgniteSqlConformance.INSTANCE))
-        .sqlValidatorConfig(SqlValidator.Config.DEFAULT
+        .sqlValidatorConfig(IgniteSqlValidator.Config.DFLT
+            .withSqlNodeRewriter(IgniteSqlCallRewriteTable.INSTANCE)
             // TODO Workaround for https://issues.apache.org/jira/browse/CALCITE-6978
             .withCallRewrite(false)
             .withIdentifierExpansion(true)
@@ -398,6 +400,7 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
     /** {@inheritDoc} */
     @Override public void onKernalStart(boolean active) {
         onStart(ctx,
+            distrCfg,
             executionSvc,
             mailboxRegistry,
             partSvc,
@@ -407,7 +410,8 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
             mappingSvc,
             qryPlanCache,
             exchangeSvc,
-            qryReg
+            qryReg,
+            prepareSvc
         );
 
         started = true;
@@ -419,6 +423,7 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
             started = false;
 
             onStop(
+                prepareSvc,
                 qryReg,
                 executionSvc,
                 mailboxRegistry,
@@ -428,7 +433,8 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
                 taskExecutor,
                 mappingSvc,
                 qryPlanCache,
-                exchangeSvc
+                exchangeSvc,
+                distrCfg
             );
         }
     }
@@ -752,7 +758,8 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
             (q, ex) -> qryReg.unregister(q.id(), ex),
             log,
             qryPlannerTimeout,
-            timeout
+            timeout,
+            fldsQry != null ? fldsQry.getQueryInitiatorId() : null
         );
 
         if (qrys != null)

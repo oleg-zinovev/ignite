@@ -20,6 +20,7 @@ package org.apache.ignite.internal.managers.communication;
 import java.nio.ByteBuffer;
 
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.internal.CoreMessagesProvider;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageFactory;
 import org.apache.ignite.plugin.extensions.communication.MessageFactoryProvider;
@@ -31,7 +32,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Tests for default implementation of {@link MessageFactory} interface.
+ * Tests for default implementation of {@link CoreMessagesProvider} interface.
  */
 public class IgniteMessageFactoryImplTest {
     /** Test message 1 type. */
@@ -158,10 +159,6 @@ public class IgniteMessageFactoryImplTest {
             return TEST_MSG_1_TYPE;
         }
 
-        /** {@inheritDoc} */
-        @Override public void onAckReceived() {
-            // No-op.
-        }
     }
 
     /** Test message. */
@@ -181,10 +178,6 @@ public class IgniteMessageFactoryImplTest {
             return TEST_MSG_2_TYPE;
         }
 
-        /** {@inheritDoc} */
-        @Override public void onAckReceived() {
-            // No-op.
-        }
     }
 
     /** Test message. */
@@ -204,9 +197,5 @@ public class IgniteMessageFactoryImplTest {
             return TEST_MSG_42_TYPE;
         }
 
-        /** {@inheritDoc} */
-        @Override public void onAckReceived() {
-            // No-op.
-        }
     }
 }

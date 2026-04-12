@@ -37,7 +37,6 @@ import org.apache.ignite.internal.managers.IgniteDiagnosticMessagesMultipleConne
 import org.apache.ignite.internal.managers.IgniteDiagnosticMessagesTest;
 import org.apache.ignite.internal.managers.IgniteDiagnosticPartitionReleaseFutureLimitTest;
 import org.apache.ignite.internal.managers.communication.GridIoManagerFileTransmissionSelfTest;
-import org.apache.ignite.internal.managers.discovery.IncompleteDeserializationExceptionTest;
 import org.apache.ignite.internal.metric.MetricConfigurationTest;
 import org.apache.ignite.internal.metric.MetricsClusterActivationTest;
 import org.apache.ignite.internal.metric.PeriodicHistogramMetricImplTest;
@@ -52,6 +51,7 @@ import org.apache.ignite.internal.processors.cache.IgniteMarshallerCacheClientRe
 import org.apache.ignite.internal.processors.cache.IgniteMarshallerCacheClientRequestsMappingTest;
 import org.apache.ignite.internal.processors.cache.IgniteMarshallerCacheFSRestoreTest;
 import org.apache.ignite.internal.processors.cache.IgniteMarshallerCacheSeparateDirectoryTest;
+import org.apache.ignite.internal.processors.cache.MdcCacheReadRequestsRoutingTest;
 import org.apache.ignite.internal.processors.cache.RebalanceWithDifferentThreadPoolSizeTest;
 import org.apache.ignite.internal.processors.cache.distributed.IgniteRejectConnectOnNodeStopTest;
 import org.apache.ignite.internal.processors.cache.persistence.defragmentation.LinkMapTest;
@@ -204,8 +204,6 @@ import org.junit.runners.Suite;
 
     ClassPathContentLoggingTest.class,
 
-    IncompleteDeserializationExceptionTest.class,
-
     GridIoManagerFileTransmissionSelfTest.class,
 
     IgniteStandardMXBeanTest.class,
@@ -228,6 +226,7 @@ import org.junit.runners.Suite;
     PeriodicHistogramMetricImplTest.class,
 
     FreeListCutTailDifferentGcTest.class,
+    MdcCacheReadRequestsRoutingTest.class,
 })
 public class IgniteBasicTestSuite2 {
 }

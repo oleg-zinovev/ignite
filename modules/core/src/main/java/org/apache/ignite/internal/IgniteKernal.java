@@ -84,7 +84,6 @@ import org.apache.ignite.configuration.BinaryConfiguration;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.CollectionConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
-import org.apache.ignite.configuration.MemoryConfiguration;
 import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.binary.BinaryMarshaller;
@@ -100,6 +99,7 @@ import org.apache.ignite.internal.managers.IgniteMBeansManager;
 import org.apache.ignite.internal.managers.checkpoint.GridCheckpointManager;
 import org.apache.ignite.internal.managers.collision.GridCollisionManager;
 import org.apache.ignite.internal.managers.communication.GridIoManager;
+import org.apache.ignite.internal.managers.communication.IgniteMessageFactoryImpl;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentManager;
 import org.apache.ignite.internal.managers.discovery.DiscoveryLocalJoinData;
 import org.apache.ignite.internal.managers.discovery.GridDiscoveryManager;
@@ -110,7 +110,6 @@ import org.apache.ignite.internal.managers.indexing.GridIndexingManager;
 import org.apache.ignite.internal.managers.loadbalancer.GridLoadBalancerManager;
 import org.apache.ignite.internal.managers.systemview.GridSystemViewManager;
 import org.apache.ignite.internal.managers.systemview.IgniteConfigurationIterable;
-import org.apache.ignite.internal.managers.systemview.walker.ConfigurationViewWalker;
 import org.apache.ignite.internal.managers.tracing.GridTracingManager;
 import org.apache.ignite.internal.plugin.IgniteLogInfoProvider;
 import org.apache.ignite.internal.plugin.IgniteLogInfoProviderImpl;
@@ -146,7 +145,6 @@ import org.apache.ignite.internal.processors.marshaller.GridMarshallerMappingPro
 import org.apache.ignite.internal.processors.metastorage.persistence.DistributedMetaStorageImpl;
 import org.apache.ignite.internal.processors.metric.GridMetricManager;
 import org.apache.ignite.internal.processors.nodevalidation.DiscoveryNodeValidationProcessor;
-import org.apache.ignite.internal.processors.nodevalidation.OsDiscoveryNodeValidationProcessor;
 import org.apache.ignite.internal.processors.odbc.ClientListenerProcessor;
 import org.apache.ignite.internal.processors.performancestatistics.PerformanceStatisticsProcessor;
 import org.apache.ignite.internal.processors.platform.PlatformNoopProcessor;
@@ -160,6 +158,7 @@ import org.apache.ignite.internal.processors.resource.GridResourceProcessor;
 import org.apache.ignite.internal.processors.resource.GridSpringResourceContext;
 import org.apache.ignite.internal.processors.rest.GridRestProcessor;
 import org.apache.ignite.internal.processors.rest.IgniteRestProcessor;
+import org.apache.ignite.internal.processors.rollingupgrade.RollingUpgradeProcessor;
 import org.apache.ignite.internal.processors.security.GridSecurityProcessor;
 import org.apache.ignite.internal.processors.security.IgniteSecurity;
 import org.apache.ignite.internal.processors.security.IgniteSecurityProcessor;
@@ -173,7 +172,8 @@ import org.apache.ignite.internal.processors.timeout.GridTimeoutProcessor;
 import org.apache.ignite.internal.suggestions.GridPerformanceSuggestions;
 import org.apache.ignite.internal.suggestions.JvmConfigurationSuggestions;
 import org.apache.ignite.internal.suggestions.OsConfigurationSuggestions;
-import org.apache.ignite.internal.util.StripedExecutor;
+import org.apache.ignite.internal.systemview.ConfigurationViewWalker;
+import org.apache.ignite.internal.thread.pool.IgniteStripedExecutor;
 import org.apache.ignite.internal.util.TimeBag;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
@@ -210,6 +210,8 @@ import org.apache.ignite.metric.MetricRegistry;
 import org.apache.ignite.plugin.IgnitePlugin;
 import org.apache.ignite.plugin.PluginNotFoundException;
 import org.apache.ignite.plugin.PluginProvider;
+import org.apache.ignite.plugin.extensions.communication.MessageFactory;
+import org.apache.ignite.plugin.extensions.communication.MessageFactoryProvider;
 import org.apache.ignite.spi.IgniteSpi;
 import org.apache.ignite.spi.IgniteSpiVersionCheckException;
 import org.apache.ignite.spi.discovery.isolated.IsolatedDiscoverySpi;
@@ -221,6 +223,7 @@ import org.jetbrains.annotations.Nullable;
 import static java.util.Collections.singleton;
 import static java.util.Optional.ofNullable;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_BINARY_MARSHALLER_USE_STRING_SERIALIZATION_VER_2;
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_DATA_CENTER_ID;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_OPTIMIZED_MARSHALLER_USE_DEFAULT_SUID;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_SKIP_CONFIGURATION_CONSISTENCY_CHECK;
 import static org.apache.ignite.IgniteSystemProperties.getBoolean;
@@ -236,6 +239,7 @@ import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_BUILD_DATE;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_BUILD_VER;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_CLIENT_MODE;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_CONSISTENCY_CHECK_SKIPPED;
+import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_DATA_CENTER_ID;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_DATA_STORAGE_CONFIG;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_DATA_STREAMER_POOL_SIZE;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_DEPLOYMENT_MODE;
@@ -252,7 +256,6 @@ import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_MARSHALLER;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_MARSHALLER_COMPACT_FOOTER;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_MARSHALLER_USE_BINARY_STRING_SER_VER_2;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_MARSHALLER_USE_DFLT_SUID;
-import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_MEMORY_CONFIG;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_NODE_CONSISTENT_ID;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_PEER_CLASSLOADING;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_PREFIX;
@@ -435,6 +438,9 @@ public class IgniteKernal implements IgniteEx, Externalizable {
 
     /** The state object is used when reconnection occurs. See {@link IgniteKernal#onReconnected(boolean)}. */
     private final ReconnectState reconnectState = new ReconnectState();
+
+    /** Core message factory. */
+    private MessageFactory msgFactory;
 
     /**
      * No-arg constructor is required by externalization.
@@ -999,7 +1005,11 @@ public class IgniteKernal implements IgniteEx, Externalizable {
             }
             startManager(new GridMetricManager(ctx));
             startManager(new GridSystemViewManager(ctx));
+
+            initMessageFactory();
+
             startManager(new GridIoManager(ctx));
+
             startManager(new GridCheckpointManager(ctx));
 
             startManager(new GridEventStorageManager(ctx));
@@ -1301,6 +1311,31 @@ public class IgniteKernal implements IgniteEx, Externalizable {
         startTimer.finishGlobalStage("Await exchange");
     }
 
+    /** */
+    private void initMessageFactory() throws IgniteCheckedException {
+        MessageFactoryProvider[] msgs = ctx.plugins().extensions(MessageFactoryProvider.class);
+
+        if (msgs == null)
+            msgs = new MessageFactoryProvider[0];
+
+        List<MessageFactoryProvider> compMsgs = new ArrayList<>();
+
+        compMsgs.add(new CoreMessagesProvider(ctx.marshaller(), ctx.marshallerContext().jdkMarshaller(),
+            U.resolveClassLoader(ctx.config())));
+
+        for (IgniteComponentType compType : IgniteComponentType.values()) {
+            MessageFactoryProvider f = compType.messageFactory();
+
+            if (f != null)
+                compMsgs.add(f);
+        }
+
+        if (!compMsgs.isEmpty())
+            msgs = F.concat(msgs, compMsgs.toArray(new MessageFactoryProvider[compMsgs.size()]));
+
+        msgFactory = new IgniteMessageFactoryImpl(msgs);
+    }
+
     /**
      * @return Ignite security processor. See {@link IgniteSecurity} for details.
      */
@@ -1335,8 +1370,8 @@ public class IgniteKernal implements IgniteEx, Externalizable {
             poolActiveThreads = Math.min(poolSize, exec.getActiveCount());
             poolQSize = exec.getQueue().size();
         }
-        else if (execSvc instanceof StripedExecutor) {
-            StripedExecutor exec = (StripedExecutor)execSvc;
+        else if (execSvc instanceof IgniteStripedExecutor) {
+            IgniteStripedExecutor exec = (IgniteStripedExecutor)execSvc;
 
             poolSize = exec.stripesCount();
             poolActiveThreads = exec.activeStripesCount();
@@ -1600,11 +1635,16 @@ public class IgniteKernal implements IgniteEx, Externalizable {
             add(ATTR_REST_PORT_RANGE, cfg.getConnectorConfiguration().getPortRange());
 
         // Save data storage configuration.
-        addDataStorageConfigurationAttributes();
+        add(ATTR_DATA_STORAGE_CONFIG, ctx.marshallerContext().jdkMarshaller().marshal(cfg.getDataStorageConfiguration()));
 
         // Save transactions configuration.
         add(ATTR_TX_SERIALIZABLE_ENABLED, cfg.getTransactionConfiguration().isTxSerializableEnabled());
         add(ATTR_TX_AWARE_QUERIES_ENABLED, cfg.getTransactionConfiguration().isTxAwareQueriesEnabled());
+
+        if (IgniteSystemProperties.getString(IGNITE_DATA_CENTER_ID) != null)
+            add(ATTR_DATA_CENTER_ID, IgniteSystemProperties.getString(IGNITE_DATA_CENTER_ID));
+        else if (userAttrs != null && userAttrs.get(IGNITE_DATA_CENTER_ID) != null)
+            add(ATTR_DATA_CENTER_ID, (Serializable)userAttrs.get(IGNITE_DATA_CENTER_ID));
 
         // Stick in SPI versions and classes attributes.
         addSpiAttributes(cfg.getCollisionSpi());
@@ -1627,25 +1667,6 @@ public class IgniteKernal implements IgniteEx, Externalizable {
                 ctx.addNodeAttribute(e.getKey(), e.getValue());
             }
         }
-    }
-
-    /**
-     * @throws IgniteCheckedException If duplicated SPI name found.
-     */
-    private void addDataStorageConfigurationAttributes() throws IgniteCheckedException {
-        MemoryConfiguration memCfg = cfg.getMemoryConfiguration();
-
-        // Save legacy memory configuration if it's present.
-        if (memCfg != null) {
-            // Page size initialization is suspended, see IgniteCacheDatabaseSharedManager#checkPageSize.
-            // We should copy initialized value from new configuration.
-            memCfg.setPageSize(cfg.getDataStorageConfiguration().getPageSize());
-
-            add(ATTR_MEMORY_CONFIG, memCfg);
-        }
-
-        // Save data storage configuration.
-        add(ATTR_DATA_STORAGE_CONFIG, ctx.marshallerContext().jdkMarshaller().marshal(cfg.getDataStorageConfiguration()));
     }
 
     /**
@@ -3042,6 +3063,11 @@ public class IgniteKernal implements IgniteEx, Externalizable {
         }
     }
 
+    /** @return Core message factory. */
+    MessageFactory messageFactory() {
+        return msgFactory;
+    }
+
     /**
      * Method is responsible for handling the {@link EventType#EVT_CLIENT_NODE_DISCONNECTED} event. Notify all the
      * GridComponents that the such even has been occurred (e.g. if the local client node disconnected from the cluster
@@ -3218,7 +3244,7 @@ public class IgniteKernal implements IgniteEx, Externalizable {
             return (T)new CacheObjectBinaryProcessorImpl(ctx);
 
         if (cls.equals(DiscoveryNodeValidationProcessor.class))
-            return (T)new OsDiscoveryNodeValidationProcessor(ctx);
+            return (T)new RollingUpgradeProcessor(ctx);
 
         if (cls.equals(IGridClusterStateProcessor.class))
             return (T)new GridClusterStateProcessor(ctx);

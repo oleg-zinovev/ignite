@@ -29,10 +29,12 @@ import javax.cache.processor.MutableEntry;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.internal.cache.context.SessionContextImpl;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
-import org.apache.ignite.internal.processors.cache.GridCacheProxyImpl;
+import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTxLocal;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
+import org.apache.ignite.internal.processors.query.QueryProperties;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.schema.CacheTableDescriptor;
 import org.apache.ignite.internal.processors.query.calcite.schema.ModifyTuple;
@@ -42,6 +44,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 
 import static org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode.CONCURRENT_UPDATE;
 import static org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode.DUPLICATE_KEY;
+import static org.apache.ignite.internal.processors.query.QueryUtils.cacheForDML;
 
 /**
  *
@@ -198,8 +201,14 @@ public class ModifyNode<Row> extends AbstractNode<Row> implements SingleNode<Row
         this.tuples = new ArrayList<>(MODIFY_BATCH_SIZE);
 
         GridCacheContext<Object, Object> cctx = desc.cacheContext();
-        GridCacheProxyImpl<Object, Object> cache = cctx.cache().keepBinary();
+        IgniteInternalCache<Object, Object> cache = cctx.cache();
         GridNearTxLocal tx = Commons.queryTransaction(context(), cctx.shared());
+
+        QueryProperties props = context().unwrap(QueryProperties.class);
+        boolean keepBinaryMode = props == null || props.keepBinary();
+
+        if (keepBinaryMode)
+            cache = cache.keepBinary();
 
         if (tx == null)
             invokeOutsideTransaction(tuples, cache);
@@ -215,10 +224,16 @@ public class ModifyNode<Row> extends AbstractNode<Row> implements SingleNode<Row
      */
     private void invokeOutsideTransaction(
         List<ModifyTuple> tuples,
-        GridCacheProxyImpl<Object, Object> cache
+        IgniteInternalCache<Object, Object> cache
     ) throws IgniteCheckedException {
+        SessionContextImpl sesCtx = context().unwrap(SessionContextImpl.class);
+        Map<String, String> sesAttrs = sesCtx == null ? null : sesCtx.attributes();
+
+        if (sesAttrs != null)
+            cache = cache.withApplicationAttributes(sesAttrs);
+
         Map<Object, EntryProcessor<Object, Object, Long>> map = invokeMap(tuples);
-        Map<Object, EntryProcessorResult<Long>> res = cache.invokeAll(map);
+        Map<Object, EntryProcessorResult<Long>> res = cacheForDML(cache).invokeAll(map);
 
         long updated = res.values().stream().mapToLong(EntryProcessorResult::get).sum();
 
@@ -243,7 +258,7 @@ public class ModifyNode<Row> extends AbstractNode<Row> implements SingleNode<Row
      */
     private void invokeInsideTransaction(
         List<ModifyTuple> tuples,
-        GridCacheProxyImpl<Object, Object> cache,
+        IgniteInternalCache<Object, Object> cache,
         GridNearTxLocal userTx
     ) throws IgniteCheckedException {
         userTx.resume();

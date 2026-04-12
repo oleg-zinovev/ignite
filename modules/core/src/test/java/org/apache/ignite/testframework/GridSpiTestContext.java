@@ -37,20 +37,22 @@ import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.events.Event;
 import org.apache.ignite.events.TaskEvent;
 import org.apache.ignite.internal.ClusterMetricsSnapshot;
+import org.apache.ignite.internal.CoreMessagesProvider;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.direct.DirectMessageReader;
 import org.apache.ignite.internal.direct.DirectMessageWriter;
-import org.apache.ignite.internal.managers.communication.GridIoMessageFactory;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.managers.communication.GridIoUserMessage;
 import org.apache.ignite.internal.managers.communication.GridMessageListener;
 import org.apache.ignite.internal.managers.communication.IgniteMessageFactoryImpl;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
+import org.apache.ignite.internal.processors.cluster.NodeMetricsMessage;
 import org.apache.ignite.internal.processors.metric.MetricRegistryImpl;
 import org.apache.ignite.internal.processors.timeout.GridSpiTimeoutObject;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutProcessor;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiPredicate;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.logger.NullLogger;
@@ -74,6 +76,7 @@ import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.events.EventType.EVT_NODE_METRICS_UPDATED;
 import static org.apache.ignite.internal.GridTopic.TOPIC_COMM_USER;
+import static org.apache.ignite.marshaller.Marshallers.jdk;
 
 /**
  * Test SPI context.
@@ -190,12 +193,12 @@ public class GridSpiTestContext implements IgniteSpiContext {
      * @return Metrics adapter.
      */
     private ClusterMetricsSnapshot createMetrics(int waitingJobs, int activeJobs) {
-        ClusterMetricsSnapshot metrics = new ClusterMetricsSnapshot();
+        NodeMetricsMessage metrics = new NodeMetricsMessage();
 
-        metrics.setCurrentWaitingJobs(waitingJobs);
-        metrics.setCurrentActiveJobs(activeJobs);
+        metrics.currentWaitingJobs(waitingJobs);
+        metrics.currentActiveJobs(activeJobs);
 
-        return metrics;
+        return new ClusterMetricsSnapshot(metrics);
     }
 
     /**
@@ -277,14 +280,6 @@ public class GridSpiTestContext implements IgniteSpiContext {
     public void updateMetrics(ClusterNode node) {
         if (locNode.equals(node) || rmtNodes.contains(node))
             notifyListener(new DiscoveryEvent(locNode, "Metrics updated.", EVT_NODE_METRICS_UPDATED, node));
-    }
-
-    /** */
-    public void updateAllMetrics() {
-        notifyListener(new DiscoveryEvent(locNode, "Metrics updated", EVT_NODE_METRICS_UPDATED, locNode));
-
-        for (ClusterNode node : rmtNodes)
-            notifyListener(new DiscoveryEvent(locNode, "Metrics updated", EVT_NODE_METRICS_UPDATED, node));
     }
 
     /**
@@ -543,12 +538,12 @@ public class GridSpiTestContext implements IgniteSpiContext {
     @Override public MessageFormatter messageFormatter() {
         if (formatter == null) {
             formatter = new MessageFormatter() {
-                @Override public MessageWriter writer(UUID rmtNodeId, MessageFactory msgFactory) {
+                @Override public MessageWriter writer(MessageFactory msgFactory) {
                     return new DirectMessageWriter(msgFactory);
                 }
 
-                @Override public MessageReader reader(UUID rmtNodeId, MessageFactory msgFactory) {
-                    return new DirectMessageReader(msgFactory);
+                @Override public MessageReader reader(MessageFactory msgFactory) {
+                    return new DirectMessageReader(msgFactory, null);
                 }
             };
         }
@@ -559,7 +554,8 @@ public class GridSpiTestContext implements IgniteSpiContext {
     /** {@inheritDoc} */
     @Override public MessageFactory messageFactory() {
         if (factory == null)
-            factory = new IgniteMessageFactoryImpl(new MessageFactoryProvider[]{new GridIoMessageFactory()});
+            factory = new IgniteMessageFactoryImpl(new MessageFactoryProvider[]{new CoreMessagesProvider(jdk(), jdk(),
+                U.gridClassLoader())});
 
         return factory;
     }
@@ -620,7 +616,7 @@ public class GridSpiTestContext implements IgniteSpiContext {
         if (metricsRegistryProducer != null)
             return metricsRegistryProducer.apply(name);
 
-        return new MetricRegistryImpl(name, null, null, new NullLogger());
+        return new MetricRegistryImpl(name, null, null, null, new NullLogger());
     }
 
     /** {@inheritDoc} */

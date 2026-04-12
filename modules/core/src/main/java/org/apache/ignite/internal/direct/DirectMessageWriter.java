@@ -22,30 +22,62 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.apache.ignite.internal.direct.state.DirectMessageState;
 import org.apache.ignite.internal.direct.state.DirectMessageStateItem;
 import org.apache.ignite.internal.direct.stream.DirectByteBufferStream;
+import org.apache.ignite.internal.managers.communication.CompressedMessage;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.CacheObject;
+import org.apache.ignite.internal.processors.cache.KeyCacheObject;
+import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.lang.IgniteOutClosure;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.plugin.extensions.communication.Message;
-import org.apache.ignite.plugin.extensions.communication.MessageCollectionItemType;
+import org.apache.ignite.plugin.extensions.communication.MessageArrayType;
+import org.apache.ignite.plugin.extensions.communication.MessageCollectionType;
 import org.apache.ignite.plugin.extensions.communication.MessageFactory;
+import org.apache.ignite.plugin.extensions.communication.MessageMapType;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 import org.jetbrains.annotations.Nullable;
+
+import static org.apache.ignite.configuration.IgniteConfiguration.DFLT_NETWORK_COMPRESSION;
 
 /**
  * Message writer implementation.
  */
 public class DirectMessageWriter implements MessageWriter {
+    /** Temporary buffer capacity.  */
+    private static final int TMP_BUF_CAPACITY = 10 * 1024;
+
     /** State. */
     @GridToStringInclude
     private final DirectMessageState<StateItem> state;
 
-    /** */
+    /** Message factory. */
+    private final MessageFactory msgFactory;
+
+    /** Compression level. Used only for {@link CompressedMessage}. */
+    private final int compressionLvl;
+
+    /** Buffer for writing. */
+    private ByteBuffer buf;
+
+    /** @param msgFactory Message factory. */
     public DirectMessageWriter(final MessageFactory msgFactory) {
+        this(msgFactory, DFLT_NETWORK_COMPRESSION);
+    }
+
+    /**
+     * @param msgFactory Message factory.
+     * @param compressionLvl Compression level.
+     */
+    public DirectMessageWriter(final MessageFactory msgFactory, final int compressionLvl) {
+        this.msgFactory = msgFactory;
+        this.compressionLvl = compressionLvl;
+
         state = new DirectMessageState<>(StateItem.class, new IgniteOutClosure<StateItem>() {
             @Override public StateItem apply() {
                 return new StateItem(msgFactory);
@@ -55,7 +87,18 @@ public class DirectMessageWriter implements MessageWriter {
 
     /** {@inheritDoc} */
     @Override public void setBuffer(ByteBuffer buf) {
+        this.buf = buf;
+
         state.item().stream.setBuffer(buf);
+    }
+
+    /**
+     * Gets buffer to write to.
+     *
+     * @return Byte buffer.
+     */
+    public ByteBuffer getBuffer() {
+        return buf;
     }
 
     /** {@inheritDoc} */
@@ -275,38 +318,78 @@ public class DirectMessageWriter implements MessageWriter {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean writeMessage(@Nullable Message msg) {
+    @Override public boolean writeMessage(@Nullable Message msg, boolean compress) {
         DirectByteBufferStream stream = state.item().stream;
 
-        stream.writeMessage(msg, this);
+        if (compress)
+            writeCompressedMessage(
+                tmpWriter -> tmpWriter.state.item().stream.writeMessage(msg, tmpWriter),
+                msg == null,
+                stream
+            );
+        else
+            stream.writeMessage(msg, this);
 
         return stream.lastFinished();
     }
 
     /** {@inheritDoc} */
-    @Override public <T> boolean writeObjectArray(T[] arr, MessageCollectionItemType itemType) {
+    @Override public boolean writeCacheObject(@Nullable CacheObject obj) {
         DirectByteBufferStream stream = state.item().stream;
 
-        stream.writeObjectArray(arr, itemType, this);
+        stream.writeCacheObject(obj);
 
         return stream.lastFinished();
     }
 
     /** {@inheritDoc} */
-    @Override public <T> boolean writeCollection(Collection<T> col, MessageCollectionItemType itemType) {
+    @Override public boolean writeKeyCacheObject(KeyCacheObject obj) {
         DirectByteBufferStream stream = state.item().stream;
 
-        stream.writeCollection(col, itemType, this);
+        stream.writeKeyCacheObject(obj);
 
         return stream.lastFinished();
     }
 
     /** {@inheritDoc} */
-    @Override public <K, V> boolean writeMap(Map<K, V> map, MessageCollectionItemType keyType,
-        MessageCollectionItemType valType) {
+    @Override public boolean writeGridLongList(@Nullable GridLongList ll) {
         DirectByteBufferStream stream = state.item().stream;
 
-        stream.writeMap(map, keyType, valType, this);
+        stream.writeGridLongList(ll);
+
+        return stream.lastFinished();
+    }
+
+    /** {@inheritDoc} */
+    @Override public <T> boolean writeObjectArray(T[] arr, MessageArrayType type) {
+        DirectByteBufferStream stream = state.item().stream;
+
+        stream.writeObjectArray(arr, type, this);
+
+        return stream.lastFinished();
+    }
+
+    /** {@inheritDoc} */
+    @Override public <T> boolean writeCollection(Collection<T> col, MessageCollectionType type) {
+        DirectByteBufferStream stream = state.item().stream;
+
+        stream.writeCollection(col, type, this);
+
+        return stream.lastFinished();
+    }
+
+    /** {@inheritDoc} */
+    @Override public <K, V> boolean writeMap(Map<K, V> map, MessageMapType type, boolean compress) {
+        DirectByteBufferStream stream = state.item().stream;
+
+        if (compress)
+            writeCompressedMessage(
+                tmpWriter -> tmpWriter.state.item().stream.writeMap(map, type, tmpWriter),
+                map == null,
+                stream
+            );
+        else
+            stream.writeMap(map, type, this);
 
         return stream.lastFinished();
     }
@@ -332,12 +415,19 @@ public class DirectMessageWriter implements MessageWriter {
     }
 
     /** {@inheritDoc} */
-    @Override public void beforeInnerMessageWrite() {
-        state.forward();
+    @Override public void decrementState() {
+        state.item().state--;
     }
 
     /** {@inheritDoc} */
-    @Override public void afterInnerMessageWrite(boolean finished) {
+    @Override public void beforeNestedWrite() {
+        state.forward();
+
+        state.item().stream.setBuffer(buf);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void afterNestedWrite(boolean finished) {
         state.backward(finished);
     }
 
@@ -349,6 +439,61 @@ public class DirectMessageWriter implements MessageWriter {
     /** {@inheritDoc} */
     @Override public String toString() {
         return S.toString(DirectMessageWriter.class, this);
+    }
+
+    /**
+     * @param consumer Consumer.
+     * @param isNull {@code True} if message is null.
+     * @param stream Byte buffer stream.
+     */
+    private void writeCompressedMessage(Consumer<DirectMessageWriter> consumer, boolean isNull, DirectByteBufferStream stream) {
+        if (isNull) {
+            stream.writeShort(Short.MIN_VALUE);
+
+            return;
+        }
+
+        if (!stream.serializeFinished()) {
+            ByteBuffer tmpBuf = ByteBuffer.allocateDirect(TMP_BUF_CAPACITY);
+
+            DirectMessageWriter tmpWriter = new DirectMessageWriter(msgFactory, compressionLvl);
+
+            tmpWriter.setBuffer(tmpBuf);
+
+            boolean finished;
+
+            do {
+                if (tmpBuf.remaining() <= tmpBuf.capacity() / 10) {
+                    byte[] bytes = new byte[tmpBuf.position()];
+
+                    tmpBuf.flip();
+                    tmpBuf.get(bytes);
+
+                    tmpBuf = ByteBuffer.allocateDirect(tmpBuf.capacity() * 2);
+
+                    tmpBuf.put(bytes);
+
+                    tmpWriter.setBuffer(tmpBuf);
+                }
+
+                consumer.accept(tmpWriter);
+
+                finished = tmpWriter.state.item().stream.lastFinished();
+            }
+            while (!finished);
+
+            tmpBuf.flip();
+
+            stream.compressedMessage(new CompressedMessage(tmpBuf, compressionLvl));
+            stream.serializeFinished(true);
+        }
+
+        stream.writeMessage(stream.compressedMessage(), this);
+
+        if (stream.lastFinished()) {
+            stream.compressedMessage(null);
+            stream.serializeFinished(false);
+        }
     }
 
     /**

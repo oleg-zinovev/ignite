@@ -56,7 +56,7 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.persistence.DataRegion;
 import org.apache.ignite.internal.processors.cache.persistence.IgniteCacheDatabaseSharedManager;
 import org.apache.ignite.internal.processors.port.GridPortRecord;
-import org.apache.ignite.internal.util.StripedExecutor;
+import org.apache.ignite.internal.thread.pool.IgniteStripedExecutor;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -785,8 +785,8 @@ public class IgniteLogInfoProviderImpl implements IgniteLogInfoProvider {
             poolActiveThreads = Math.min(poolSize, exec.getActiveCount());
             poolQSize = exec.getQueue().size();
         }
-        else if (execSvc instanceof StripedExecutor) {
-            StripedExecutor exec = (StripedExecutor)execSvc;
+        else if (execSvc instanceof IgniteStripedExecutor) {
+            IgniteStripedExecutor exec = (IgniteStripedExecutor)execSvc;
 
             poolSize = exec.stripesCount();
             poolActiveThreads = exec.activeStripesCount();
@@ -935,7 +935,7 @@ public class IgniteLogInfoProviderImpl implements IgniteLogInfoProvider {
                 U.quiet(false, "Ignite node stopped OK [" + nodeName + "uptime=" +
                     ((IgniteKernal)ignite).upTimeFormatted() + ']');
             else
-                U.quiet(true, "Ignite node stopped wih ERRORS [" + nodeName + "uptime=" +
+                U.quiet(true, "Ignite node stopped with ERRORS [" + nodeName + "uptime=" +
                     ((IgniteKernal)ignite).upTimeFormatted() + ']');
         }
 

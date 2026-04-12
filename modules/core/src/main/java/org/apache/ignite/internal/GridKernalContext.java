@@ -67,6 +67,7 @@ import org.apache.ignite.internal.processors.port.GridPortProcessor;
 import org.apache.ignite.internal.processors.query.GridQueryProcessor;
 import org.apache.ignite.internal.processors.resource.GridResourceProcessor;
 import org.apache.ignite.internal.processors.rest.IgniteRestProcessor;
+import org.apache.ignite.internal.processors.rollingupgrade.RollingUpgradeProcessor;
 import org.apache.ignite.internal.processors.schedule.IgniteScheduleProcessorAdapter;
 import org.apache.ignite.internal.processors.security.IgniteSecurity;
 import org.apache.ignite.internal.processors.segmentation.GridSegmentationProcessor;
@@ -83,6 +84,7 @@ import org.apache.ignite.internal.worker.WorkersRegistry;
 import org.apache.ignite.maintenance.MaintenanceRegistry;
 import org.apache.ignite.plugin.PluginNotFoundException;
 import org.apache.ignite.plugin.PluginProvider;
+import org.apache.ignite.plugin.extensions.communication.MessageFactory;
 
 /**
  *
@@ -207,6 +209,13 @@ public interface GridKernalContext extends Iterable<GridComponent> {
      * @return Maintenance registry.
      */
     public MaintenanceRegistry maintenanceRegistry();
+
+    /**
+     * Gets core message factoy.
+     *
+     * @return Core message factory.
+     */
+    public MessageFactory messageFactory();
 
     /**
      * Gets transformation processor.
@@ -639,6 +648,13 @@ public interface GridKernalContext extends Iterable<GridComponent> {
      * @return Performance statistics processor.
      */
     public PerformanceStatisticsProcessor performanceStatistics();
+
+    /**
+     * Gets Rolling upgrade processor.
+     *
+     * @return Rolling upgrade processor.
+     */
+    public RollingUpgradeProcessor rollingUpgrade();
 
     /**
      * Executor that is in charge of processing user async continuations.

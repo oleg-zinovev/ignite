@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.cache;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import javax.cache.expiry.ExpiryPolicy;
@@ -36,6 +37,10 @@ public class CacheOperationContext implements Serializable {
     /** Skip store. */
     @GridToStringInclude
     private final boolean skipStore;
+
+    /** Skip store. */
+    @GridToStringInclude
+    private final boolean skipReadThrough;
 
     /** No retries flag. */
     @GridToStringInclude
@@ -64,6 +69,7 @@ public class CacheOperationContext implements Serializable {
      */
     public CacheOperationContext() {
         skipStore = false;
+        skipReadThrough = false;
         keepBinary = false;
         expiryPlc = null;
         noRetries = false;
@@ -75,6 +81,7 @@ public class CacheOperationContext implements Serializable {
 
     /**
      * @param skipStore Skip store flag.
+     * @param skipReadThrough Skip read-through cache store flag.
      * @param keepBinary Keep binary flag.
      * @param expiryPlc Expiry policy.
      * @param dataCenterId Data center id.
@@ -83,6 +90,7 @@ public class CacheOperationContext implements Serializable {
      */
     public CacheOperationContext(
         boolean skipStore,
+        boolean skipReadThrough,
         boolean keepBinary,
         @Nullable ExpiryPolicy expiryPlc,
         boolean noRetries,
@@ -92,6 +100,7 @@ public class CacheOperationContext implements Serializable {
         @Nullable Map<String, String> appAttrs
     ) {
         this.skipStore = skipStore;
+        this.skipReadThrough = skipReadThrough;
         this.keepBinary = keepBinary;
         this.expiryPlc = expiryPlc;
         this.noRetries = noRetries;
@@ -123,6 +132,7 @@ public class CacheOperationContext implements Serializable {
     public CacheOperationContext keepBinary() {
         return new CacheOperationContext(
             skipStore,
+            skipReadThrough,
             true,
             expiryPlc,
             noRetries,
@@ -157,6 +167,48 @@ public class CacheOperationContext implements Serializable {
     public CacheOperationContext setSkipStore(boolean skipStore) {
         return new CacheOperationContext(
             skipStore,
+            skipReadThrough,
+            keepBinary,
+            expiryPlc,
+            noRetries,
+            dataCenterId,
+            recovery,
+            readRepairStrategy,
+            appAttrs);
+    }
+
+    /** @return Skip read-through cache store. */
+    public boolean skipReadThrough() {
+        return skipReadThrough;
+    }
+
+    /**
+     * See {@link IgniteInternalCache#withApplicationAttributes(Map)}.
+     *
+     * @return New instance of CacheOperationContext with new application attributes.
+     */
+    public CacheOperationContext withApplicationAttributes(Map<String, String> attrs) {
+        return new CacheOperationContext(
+            skipStore,
+            skipReadThrough,
+            keepBinary,
+            expiryPlc,
+            noRetries,
+            dataCenterId,
+            recovery,
+            readRepairStrategy,
+            Collections.unmodifiableMap(attrs));
+    }
+
+    /**
+     * See {@link IgniteInternalCache#withSkipReadThrough()}.
+     *
+     * @return New instance of CacheOperationContext with skip store flag.
+     */
+    public CacheOperationContext withSkipReadThrough() {
+        return new CacheOperationContext(
+            skipStore,
+            true,
             keepBinary,
             expiryPlc,
             noRetries,
@@ -182,6 +234,7 @@ public class CacheOperationContext implements Serializable {
     public CacheOperationContext withExpiryPolicy(ExpiryPolicy plc) {
         return new CacheOperationContext(
             skipStore,
+            skipReadThrough,
             keepBinary,
             plc,
             noRetries,
@@ -198,6 +251,7 @@ public class CacheOperationContext implements Serializable {
     public CacheOperationContext setNoRetries(boolean noRetries) {
         return new CacheOperationContext(
             skipStore,
+            skipReadThrough,
             keepBinary,
             expiryPlc,
             noRetries,
@@ -214,6 +268,7 @@ public class CacheOperationContext implements Serializable {
     public CacheOperationContext setDataCenterId(byte dataCenterId) {
         return new CacheOperationContext(
             skipStore,
+            skipReadThrough,
             keepBinary,
             expiryPlc,
             noRetries,
@@ -230,6 +285,7 @@ public class CacheOperationContext implements Serializable {
     public CacheOperationContext setRecovery(boolean recovery) {
         return new CacheOperationContext(
             skipStore,
+            skipReadThrough,
             keepBinary,
             expiryPlc,
             noRetries,
@@ -246,6 +302,7 @@ public class CacheOperationContext implements Serializable {
     public CacheOperationContext setReadRepairStrategy(ReadRepairStrategy readRepairStrategy) {
         return new CacheOperationContext(
             skipStore,
+            skipReadThrough,
             keepBinary,
             expiryPlc,
             noRetries,
@@ -262,6 +319,7 @@ public class CacheOperationContext implements Serializable {
     public CacheOperationContext setApplicationAttributes(Map<String, String> appAttrs) {
         return new CacheOperationContext(
             skipStore,
+            skipReadThrough,
             keepBinary,
             expiryPlc,
             noRetries,

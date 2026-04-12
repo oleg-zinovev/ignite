@@ -2786,7 +2786,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
 
         BinaryObjectImpl po = marshal(simpleObject(), marsh);
 
-        CacheObjectContext coCtx = new CacheObjectContext(newContext(), null, null, false, false, true, false, false);
+        CacheObjectContext coCtx = new CacheObjectContext(newContext(), null, null, false, false, true, false);
 
         assert po.value(coCtx, false) == po.value(coCtx, false);
 
@@ -3019,7 +3019,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
 
         BinaryMarshaller marsh = binaryMarshaller();
 
-        try (BinaryWriterEx writer = BinaryUtils.writer(binaryContext(marsh))) {
+        try (BinaryWriterEx writer = BinaryUtils.writer(binaryContext(marsh), false, GridBinaryMarshaller.UNREGISTERED_TYPE_ID)) {
             assertEquals(true, BinaryStreamsTestUtils.threadLocalIsAcquired());
 
             writer.writeString("Thread local test");
