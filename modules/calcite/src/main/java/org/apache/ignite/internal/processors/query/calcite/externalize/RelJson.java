@@ -720,6 +720,7 @@ class RelJson {
         RelCollation order = grp.get("order") == null
             ? RelCollations.EMPTY
             : toCollation((List<Map<String, Object>>)grp.get("order"));
+
         RexWindowBound lowerBound;
         RexWindowBound upperBound;
         boolean rows;
@@ -732,13 +733,9 @@ class RelJson {
             lowerBound = toRexWindowBound(input, (Map)grp.get("range-lower"));
             upperBound = toRexWindowBound(input, (Map)grp.get("range-upper"));
             rows = false;
-        }
-        else {
-            // No ROWS or RANGE clause
-            lowerBound = null;
-            upperBound = null;
-            rows = false;
-        }
+        } else
+            throw new IllegalStateException("RANGE or ROWS clause missing");
+
         RexWindowExclusion exclude = toEnum(grp.get("exclude"));
         return new Window.Group(
             partition,
@@ -934,16 +931,12 @@ class RelJson {
         if (!grp.orderKeys.getKeys().isEmpty())
             map.put("order", toJson(grp.orderKeys));
         if (grp.isRows) {
-            if (grp.lowerBound != null)
-                map.put("rows-lower", toJson(grp.lowerBound));
-            if (grp.upperBound != null)
-                map.put("rows-upper", toJson(grp.upperBound));
+            map.put("rows-lower", toJson(grp.lowerBound));
+            map.put("rows-upper", toJson(grp.upperBound));
         }
         else {
-            if (grp.lowerBound != null)
-                map.put("range-lower", toJson(grp.lowerBound));
-            if (grp.upperBound != null)
-                map.put("range-upper", toJson(grp.upperBound));
+            map.put("range-lower", toJson(grp.lowerBound));
+            map.put("range-upper", toJson(grp.upperBound));
         }
         map.put("exclude", toJson(grp.exclude));
         return map;
