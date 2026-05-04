@@ -19,6 +19,8 @@ package org.apache.ignite.internal.processors.query.calcite.rule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -34,6 +36,9 @@ import org.apache.calcite.rel.logical.LogicalWindow;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rel.type.RelRecordType;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.window.WindowFunctions;
@@ -59,7 +64,22 @@ public class WindowConverterRule extends AbstractIgniteConverterRule<LogicalWind
 
         RelNode result = window.getInput();
 
-        assert window.constants.isEmpty();
+        int inputFldCnt = result.getRowType().getFieldCount();
+        RexShuttle restoreConstant = new RexShuttle() {
+
+            @Override
+            public RexNode visitInputRef(RexInputRef inputRef) {
+                int idx = inputRef.getIndex();
+                if (idx < inputFldCnt) {
+                    return inputRef;
+                } else {
+                    // index above input field count reffers to window constant
+                    idx -= inputFldCnt;
+                    return window.constants.get(idx);
+                }
+            }
+        };
+
 
         for (int grpIdx = 0; grpIdx < window.groups.size(); grpIdx++) {
             Window.Group grp = window.groups.get(grpIdx);
@@ -91,7 +111,7 @@ public class WindowConverterRule extends AbstractIgniteConverterRule<LogicalWind
 
             RelRecordType rowType = new RelRecordType(grpFields);
 
-            Window.Group newGrp = replaceAggCallOrdinal(grp);
+            IgniteWindow.Group newGrp = convertGroup(grp, restoreConstant);
 
             result = new IgniteWindow(
                 window.getCluster(),
@@ -106,16 +126,24 @@ public class WindowConverterRule extends AbstractIgniteConverterRule<LogicalWind
         return (PhysicalNode)result;
     }
 
-    /** Replaces origial agg call ordinal with sequential index within group. */
-    private static Window.Group replaceAggCallOrdinal(Window.Group grp) {
+    /**
+     * Replaces:
+     * - original agg call ordinal with sequential index within group;
+     * - input ref to window constant with actual rex literal.
+     */
+    private static IgniteWindow.Group convertGroup(Window.Group grp, RexShuttle restoreConstant) {
         List<Window.RexWinAggCall> newAggCalls = new ArrayList<>(grp.aggCalls.size());
         ImmutableList<Window.RexWinAggCall> calls = grp.aggCalls;
         for (int i = 0; i < calls.size(); i++) {
             Window.RexWinAggCall aggCall = calls.get(i);
+
+
             Window.RexWinAggCall newCall = new Window.RexWinAggCall(
                 (SqlAggFunction)aggCall.op,
                 aggCall.type,
-                aggCall.operands,
+                aggCall.operands.stream()
+                        .map(it -> it.accept(restoreConstant))
+                        .collect(Collectors.toList()),
                 i,
                 aggCall.distinct,
                 aggCall.ignoreNulls
@@ -123,11 +151,11 @@ public class WindowConverterRule extends AbstractIgniteConverterRule<LogicalWind
             newAggCalls.add(newCall);
         }
 
-        return new Window.Group(
+        return new IgniteWindow.Group(
             grp.keys,
             grp.isRows,
-            grp.lowerBound,
-            grp.upperBound,
+            grp.lowerBound.accept(restoreConstant),
+            grp.upperBound.accept(restoreConstant),
             grp.exclude,
             grp.orderKeys,
             newAggCalls

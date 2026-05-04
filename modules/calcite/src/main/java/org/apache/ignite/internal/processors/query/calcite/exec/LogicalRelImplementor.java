@@ -30,11 +30,11 @@ import java.util.function.Supplier;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Intersect;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.core.Minus;
 import org.apache.calcite.rel.core.Spool;
+import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexLiteral;
@@ -953,16 +953,15 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
     @Override public Node<Row> visit(IgniteWindow rel) {
         RelDataType outType = rel.getRowType();
         RelDataType inputType = rel.getInput().getRowType();
+        Window.Group grp = rel.getGroup();
 
-        List<Integer> grpKeys = rel.getGroup().keys.toList();
+        List<Integer> grpKeys = grp.keys.toList();
         RelCollation collation = rel.collation();
 
         assert collation.getFieldCollations().size() >= grpKeys.size();
         Comparator<Row> partCmp = expressionFactory.comparator(TraitUtils.createCollation(grpKeys));
 
-        List<AggregateCall> aggCalls = rel.getGroup().getAggregateCalls(rel);
-        Supplier<WindowPartition<Row>> frameFactory = expressionFactory.windowPartitionFactory(
-            rel.getGroup(), aggCalls, inputType);
+        Supplier<WindowPartition<Row>> frameFactory = expressionFactory.windowPartitionFactory(grp, inputType);
 
         RowFactory<Row> rowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), outType);
 

@@ -82,7 +82,6 @@ public class IgniteWindow extends Window implements IgniteRel {
         assert !grp.aggCalls.isEmpty();
     }
 
-    /**  */
     public IgniteWindow(RelInput input) {
         // Streaming flag required only on planning phase, and has not affect on execution.
         this(input.getCluster(),

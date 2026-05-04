@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -86,22 +87,16 @@ public class WindowPlannerTest extends AbstractPlannerTest {
      * @throws Exception if failed
      */
     @Test
-    public void testProjectWindowConstants() throws Exception {
+    public void testWindowConstants() throws Exception {
         String sql = "SELECT ID, VALUE, " +
             "MAX(2) OVER (PARTITION BY ID ORDER BY VALUE ROWS BETWEEN 10 PRECEDING AND 20 FOLLOWING) " +
             "FROM SINGLE_TBL";
 
         assertPlan(sql, publicSchema,
-            isInstanceOf(IgniteProject.class)
-                // The top project should remove constants from the window rel on position 2..4.
-                .and(project -> "[$0, $1, $5]".equals(project.getProjects().toString()))
-                .and(input(isInstanceOf(IgniteWindow.class)
+            nodeOrAnyChild(isInstanceOf(IgniteWindow.class)
                     .and(it -> it.getGroup().lowerBound.getOffset() instanceof RexLiteral
-                        && it.getGroup().upperBound.getOffset() instanceof RexLiteral)
-                    .and(hasChildThat(isInstanceOf(IgniteProject.class)
-                        // The bottom project should add agg call constants from the window rel on position 2..4.
-                        .and(project -> "[$0, $1, 2, 10, 20]".equals(project.getProjects().toString())))))),
-            "ProjectTableScanMergeRule", "ProjectTableScanMergeSkipCorrelatedRule", "ProjectMergeRule", "ProjectWindowTransposeRule");
+                        && it.getGroup().upperBound.getOffset() instanceof RexLiteral
+                    && it.getGroup().aggCalls.get(0).operands.get(0) instanceof RexLiteral)));
     }
 
     /**

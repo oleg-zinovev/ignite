@@ -20,7 +20,6 @@ package org.apache.ignite.internal.processors.query.calcite.exec.exp.window;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
-import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
@@ -51,21 +50,20 @@ public final class WindowPartitionFactory<Row> implements Supplier<WindowPartiti
     public WindowPartitionFactory(
         ExecutionContext<Row> ctx,
         Window.Group grp,
-        List<AggregateCall> calls,
         RelDataType inputRowType
     ) {
         this.ctx = ctx;
         this.grp = grp;
         this.inputRowType = inputRowType;
 
-        List<RelDataType> aggTypes = Commons.transform(calls, AggregateCall::getType);
+        List<RelDataType> aggTypes = Commons.transform(grp.aggCalls, Window.RexWinAggCall::getType);
         aggRowFactory = ctx.rowHandler().factory(Commons.typeFactory(), aggTypes);
         if (grp.isRows)
             // peer comparator in meaningless in rows frame.
             peerCmp = null;
         else
             peerCmp = ctx.expressionFactory().comparator(grp.collation());
-        accFactory = new WindowFunctionFactory<>(ctx, grp, calls, inputRowType);
+        accFactory = new WindowFunctionFactory<>(ctx, grp, inputRowType);
     }
 
     /** {@inheritDoc} */

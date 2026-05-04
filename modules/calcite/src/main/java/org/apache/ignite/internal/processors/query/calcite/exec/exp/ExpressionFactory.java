@@ -50,7 +50,6 @@ public interface ExpressionFactory<Row> {
     /** */
     Supplier<WindowPartition<Row>> windowPartitionFactory(
         Window.Group group,
-        List<AggregateCall> calls,
         RelDataType rowType
     );
 
