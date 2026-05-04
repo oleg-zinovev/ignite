@@ -917,7 +917,7 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
 
             break;
 
-            case 10910: {
+            case 10911: {
                 GridCacheQueryRequest req = (GridCacheQueryRequest)msg;
 
                 GridCacheQueryResponse res = new GridCacheQueryResponse(
@@ -944,7 +944,7 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
 
             break;
 
-            case 10616:
+            case 10615:
             case 120: {
                 processMessage(nodeId, msg, c); // Will be handled by Rebalance Demander.
             }
