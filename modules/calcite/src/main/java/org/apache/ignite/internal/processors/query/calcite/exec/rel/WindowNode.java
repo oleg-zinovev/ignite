@@ -53,6 +53,9 @@ public class WindowNode<Row> extends MemoryTrackingNode<Row> implements SingleNo
     /**  */
     private final Deque<Row> outBuf = new ArrayDeque<>(IN_BUFFER_SIZE);
 
+    /** */
+    private boolean inLoop;
+
     /**  */
     public WindowNode(
         ExecutionContext<Row> ctx,
@@ -76,14 +79,12 @@ public class WindowNode<Row> extends MemoryTrackingNode<Row> implements SingleNo
 
         requested = rowsCnt;
 
-        doPush();
-
-        if (waiting == 0) {
-            waiting = IN_BUFFER_SIZE;
-            source().request(IN_BUFFER_SIZE);
+        if (!inLoop) {
+            flush();
         }
-        else if (waiting < 0)
-            downstream().end();
+
+        if (waiting == 0)
+            source().request(waiting = IN_BUFFER_SIZE);
     }
 
     /** {@inheritDoc} */
@@ -100,12 +101,14 @@ public class WindowNode<Row> extends MemoryTrackingNode<Row> implements SingleNo
         else if (prevRow != null && partCmp != null && partCmp.compare(prevRow, row) != 0) {
             part.drainTo(rowFactory, outBuf);
             part.reset();
-            doPush();
+            flush();
         }
 
-        if (part.add(row)) {
+        part.add(row);
+
+        if (part.isStreaming()) {
             part.drainTo(rowFactory, outBuf);
-            doPush();
+            flush();
         }
         else
             nodeMemoryTracker.onRowAdded(row);
@@ -134,9 +137,7 @@ public class WindowNode<Row> extends MemoryTrackingNode<Row> implements SingleNo
             part.reset();
         }
 
-        doPush();
-
-        downstream().end();
+        flush();
     }
 
     /** {@inheritDoc} */
@@ -160,11 +161,19 @@ public class WindowNode<Row> extends MemoryTrackingNode<Row> implements SingleNo
     }
 
     /**  */
-    private void doPush() throws Exception {
-        while (requested > 0 && !outBuf.isEmpty()) {
-            requested--;
+    private void flush() throws Exception {
+        inLoop = true;
+        try {
+            while (requested > 0 && !outBuf.isEmpty()) {
+                requested--;
 
-            downstream().push(outBuf.poll());
+                downstream().push(outBuf.poll());
+            }
+
+            if (waiting < 0 && outBuf.isEmpty())
+                downstream().end();
+        } finally {
+            inLoop = false;
         }
     }
 }

@@ -74,12 +74,13 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
     /**  */
     RangeWindowPartitionFrame(
         List<Row> buf,
+        Function<Row, Row> project,
         ExecutionContext<Row> ctx,
         Comparator<Row> peerCmp,
         Window.Group grp,
         RelDataType inputRowType
     ) {
-        super(buf);
+        super(buf, project);
         this.peerCmp = peerCmp;
         lowerBound = rangeBoundToProject(ctx, grp.lowerBound, grp.collation(), inputRowType);
         cacheableLowerBound = isCacheableBound(grp.lowerBound);
@@ -88,12 +89,13 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
     }
 
     /** {@inheritDoc} */
-    @Override protected int getFrameStart(Row row, int rowIdx, int peerIdx) {
+    @Override int getFrameStart(int rowIdx, int peerIdx) {
         if (cacheableLowerBound && cachedStartPeerIdx == peerIdx)
             return cachedStartIdx;
 
         cachedStartPeerIdx = peerIdx;
 
+        Row row = get(rowIdx);
         Row lowerBoundRow = lowerBound.apply(row);
         if (lowerBoundRow == null)
             cachedStartIdx = 0;
@@ -104,15 +106,16 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
     }
 
     /** {@inheritDoc} */
-    @Override protected int getFrameEnd(Row row, int rowIdx, int peerIdx) {
+    @Override int getFrameEnd(int rowIdx, int peerIdx) {
         if (cacheableUpperBound && cachedEndPeerIdx == peerIdx)
             return cachedEndIdx;
 
         cachedEndPeerIdx = peerIdx;
 
+        Row row = get(rowIdx);
         Row upperBoundRow = upperBound.apply(row);
         if (upperBoundRow == null)
-            cachedEndIdx = buf.size() - 1;
+            cachedEndIdx = size() - 1;
         else
             cachedEndIdx = bsearchUpperBound(upperBoundRow, buf);
 
@@ -122,14 +125,14 @@ final class RangeWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
     /** {@inheritDoc} */
     @Override int countPeers() {
         if (peerCnt == -1) {
-            int size = buf.size();
+            int size = size();
             if (size == 0)
                 peerCnt = 0;
             else {
                 peerCnt = 1;
-                Row prevRow = buf.get(0);
+                Row prevRow = get(0);
                 for (int i = 1; i < size; i++) {
-                    Row currRow = buf.get(i);
+                    Row currRow = get(i);
                     if (compareRowPeer(prevRow, currRow) != 0)
                         peerCnt++;
                     prevRow = currRow;

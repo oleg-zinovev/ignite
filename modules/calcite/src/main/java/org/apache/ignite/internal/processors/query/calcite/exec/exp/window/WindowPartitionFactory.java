@@ -17,19 +17,29 @@
 
 package org.apache.ignite.internal.processors.query.calcite.exec.exp.window;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rel.type.RelDataTypeFieldImpl;
+import org.apache.calcite.rel.type.RelRecordType;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexSlot;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
+import org.apache.ignite.internal.util.typedef.internal.U;
 
 /** Factory to create {@link WindowPartitionBase} factory from {@link Window.Group}. */
 public final class WindowPartitionFactory<Row> implements Supplier<WindowPartition<Row>> {
     /**  */
-    private final WindowFunctionFactory<Row> accFactory;
+    private final WindowFunctionFactory<Row> funcFactory;
 
     /**  */
     private final ExecutionContext<Row> ctx;
@@ -41,10 +51,13 @@ public final class WindowPartitionFactory<Row> implements Supplier<WindowPartiti
     private final RelDataType inputRowType;
 
     /**  */
-    private final RowHandler.RowFactory<Row> aggRowFactory;
+    private final RowHandler.RowFactory<Row> rowFactory;
 
     /**  */
     private final Comparator<Row> peerCmp;
+
+    /**  */
+    private final Function<Row, Row> project;
 
     /**  */
     public WindowPartitionFactory(
@@ -57,20 +70,54 @@ public final class WindowPartitionFactory<Row> implements Supplier<WindowPartiti
         this.inputRowType = inputRowType;
 
         List<RelDataType> aggTypes = Commons.transform(grp.aggCalls, Window.RexWinAggCall::getType);
-        aggRowFactory = ctx.rowHandler().factory(Commons.typeFactory(), aggTypes);
+        rowFactory = ctx.rowHandler().factory(Commons.typeFactory(), aggTypes);
         if (grp.isRows)
             // peer comparator in meaningless in rows frame.
             peerCmp = null;
         else
             peerCmp = ctx.expressionFactory().comparator(grp.collation());
-        accFactory = new WindowFunctionFactory<>(ctx, grp, inputRowType);
+
+        Map<RexNode, Integer> rexToOrd = new LinkedHashMap<>();
+        RelDataType aggInputRowType = mapAggregateInputRowType(grp, inputRowType, rexToOrd);
+
+        project = ctx.expressionFactory().project(U.arrayList(rexToOrd.keySet()), inputRowType);
+
+        funcFactory = new WindowFunctionFactory<>(ctx, grp, project, rexToOrd, aggInputRowType);
     }
 
     /** {@inheritDoc} */
     @Override public WindowPartition<Row> get() {
-        if (accFactory.isStreamable())
-            return new StreamWindowPartition<>(peerCmp, accFactory, aggRowFactory);
+        if (funcFactory.isStreamable())
+            return new StreamWindowPartition<>(peerCmp, funcFactory, rowFactory);
         else
-            return new BufferingWindowPartition<>(peerCmp, accFactory, aggRowFactory, ctx, grp, inputRowType);
+            return new BufferingWindowPartition<>(peerCmp, funcFactory, rowFactory, ctx, grp, project, inputRowType);
     }
+
+    /** Generates input row type for concrete aggregate call. */
+    private RelDataType mapAggregateInputRowType(Window.Group grp, RelDataType inputRowType,
+        Map<RexNode, Integer> rexToOrd) {
+
+        List<RelDataTypeField> flds = new ArrayList<>();
+        int ord = 0;
+        for (Window.RexWinAggCall call : grp.aggCalls) {
+            for (int i = 0; i < call.operands.size(); i++) {
+                RexNode operand = call.operands.get(i);
+                if (rexToOrd.containsKey(operand)) {
+                    continue;
+                }
+
+                String name;
+                if (operand instanceof RexSlot)
+                    name = inputRowType.getFieldNames().get(((RexSlot)operand).getIndex());
+                else
+                    // Not input ref - generate name.
+                    name = "fld$" + i;
+
+                flds.add(new RelDataTypeFieldImpl(name, i, operand.getType()));
+                rexToOrd.put(operand, ord++);
+            }
+        }
+        return new RelRecordType(flds);
+    }
+
 }

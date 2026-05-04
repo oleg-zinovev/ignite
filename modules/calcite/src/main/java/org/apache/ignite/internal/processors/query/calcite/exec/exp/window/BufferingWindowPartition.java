@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.Function;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
@@ -38,21 +38,21 @@ final class BufferingWindowPartition<Row> extends WindowPartitionBase<Row> {
     /**  */
     BufferingWindowPartition(
         Comparator<Row> peerCmp,
-        Supplier<List<WindowFunctionWrapper<Row>>> accFactory,
-        RowHandler.RowFactory<Row> accRowFactory,
+        WindowFunctionFactory<Row> funcFactory,
+        RowHandler.RowFactory<Row> rowFactory,
         ExecutionContext<Row> ctx,
         Window.Group grp,
+        Function<Row, Row> project,
         RelDataType inputRowType
     ) {
-        super(peerCmp, accFactory, accRowFactory);
+        super(peerCmp, funcFactory, rowFactory);
         buf = new ArrayList<>();
-        frame = createFrame(ctx, peerCmp, grp, inputRowType, buf);
+        frame = createFrame(ctx, grp, peerCmp, project, inputRowType, buf);
     }
 
     /** {@inheritDoc} */
-    @Override public boolean add(Row row) {
+    @Override public void add(Row row) {
         buf.add(row);
-        return false;
     }
 
     /** {@inheritDoc} */
@@ -90,17 +90,22 @@ final class BufferingWindowPartition<Row> extends WindowPartitionBase<Row> {
         frame.reset();
     }
 
+    @Override public boolean isStreaming() {
+        return false;
+    }
+
     /** Creates frame for partition. */
     private static <Row> WindowFunctionFrame<Row> createFrame(
         ExecutionContext<Row> ctx,
-        Comparator<Row> peerCmp,
         Window.Group grp,
+        Comparator<Row> peerCmp,
+        Function<Row, Row> project,
         RelDataType inputRowType,
         List<Row> buf
     ) {
         if (grp.isRows)
-            return new RowWindowPartitionFrame<>(buf, ctx, grp, inputRowType);
+            return new RowWindowPartitionFrame<>(buf, project, ctx, grp, inputRowType);
         else
-            return new RangeWindowPartitionFrame<>(buf, ctx, peerCmp, grp, inputRowType);
+            return new RangeWindowPartitionFrame<>(buf, project, ctx, peerCmp, grp, inputRowType);
     }
 }

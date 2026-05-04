@@ -56,18 +56,20 @@ final class RowWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
     /** */
     RowWindowPartitionFrame(
         List<Row> buf,
+        Function<Row, Row> project,
         ExecutionContext<Row> ctx,
         Window.Group grp,
         RelDataType inputRowType
     ) {
-        super(buf);
+        super(buf, project);
         lowerBoundOffset = rowsBoundToOffset(ctx, grp.lowerBound, inputRowType);
         upperBoundOffset = rowsBoundToOffset(ctx, grp.upperBound, inputRowType);
     }
 
     /** {@inheritDoc} */
-    @Override public int getFrameStart(Row row, int rowIdx, int peerIdx) {
+    @Override int getFrameStart(int rowIdx, int peerIdx) {
         if (cachedStartRowIdx != rowIdx) {
+            Row row = get(rowIdx);
             cachedStartRowIdx = rowIdx;
             cachedStartOffset = lowerBoundOffset.apply(row);
         }
@@ -75,27 +77,28 @@ final class RowWindowPartitionFrame<Row> extends WindowFunctionFrame<Row> {
         if (cachedStartOffset == null)
             return 0;
         else {
-            int idx = applyOffset(rowIdx, cachedStartOffset, buf.size() - 1);
+            int idx = applyOffset(rowIdx, cachedStartOffset, size() - 1);
             return Math.max(idx, 0);
         }
     }
 
     /** {@inheritDoc} */
-    @Override public int getFrameEnd(Row row, int rowIdx, int peerIdx) {
+    @Override int getFrameEnd(int rowIdx, int peerIdx) {
         if (cachedEndRowIdx != rowIdx) {
+            Row row = get(rowIdx);
             cachedEndRowIdx = rowIdx;
             cachedEndOffset = upperBoundOffset.apply(row);
         }
 
         if (cachedEndOffset == null)
-            return buf.size() - 1;
+            return size() - 1;
         else
-            return applyOffset(rowIdx, cachedEndOffset, buf.size() - 1);
+            return applyOffset(rowIdx, cachedEndOffset, size() - 1);
     }
 
     /** {@inheritDoc} */
     @Override int countPeers() {
-        return partitionSize();
+        return size();
     }
 
     /** {@inheritDoc} */

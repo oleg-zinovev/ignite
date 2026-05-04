@@ -17,22 +17,18 @@
 
 package org.apache.ignite.internal.processors.query.calcite.exec.exp.window;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rel.type.RelDataTypeField;
-import org.apache.calcite.rel.type.RelDataTypeFieldImpl;
-import org.apache.calcite.rel.type.RelRecordType;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexSlot;
 import org.apache.calcite.sql.SqlAggFunction;
-import org.apache.calcite.util.ImmutableIntList;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.AccumulatorWrapper;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.AccumulatorsFactoryBase;
@@ -41,39 +37,43 @@ import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.jetbrains.annotations.NotNull;
 
 /** A factory class responsible for instantiating window functions. */
-final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> implements Supplier<List<WindowFunctionWrapper<Row>>> {
+final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> {
     /**  */
     private final List<WindowFunctionPrototype<Row>> prototypes;
 
     /**  */
     private final ExecutionContext<Row> ctx;
 
+    /** */
+    private final RelDataType inputRowType;
+
     /**  */
     WindowFunctionFactory(
         ExecutionContext<Row> ctx,
         Window.Group grp,
+        Function<Row, Row> project,
+        Map<RexNode, Integer> rexToOrd,
         RelDataType inputRowType
     ) {
         super(ctx);
         this.ctx = ctx;
+        this.inputRowType = inputRowType;
 
         ImmutableList.Builder<WindowFunctionPrototype<Row>> prototypes = ImmutableList.builder();
         for (Window.RexWinAggCall call : grp.aggCalls) {
-            Function<Row, Row> inProject = ctx.expressionFactory().project(call.operands, inputRowType);
-            RelDataType inRowType = mapAggregateInputRowType(call, inputRowType);
-            AggregateCall aggCall = convertToAggregateCall(call, inRowType);
+            AggregateCall aggCall = convertToAggregateCall(call, rexToOrd);
 
             if (WindowFunctions.isWindowFunction(aggCall))
-                prototypes.add(new WindowFunctionWrapperPrototype(aggCall, inProject, inRowType));
+                prototypes.add(new WindowFunctionWrapperPrototype(aggCall, project));
             else
-                prototypes.add(new WindowFunctionAccumulatorAdapterPrototype(aggCall, grp, inProject, inRowType));
+                prototypes.add(new WindowFunctionAccumulatorAdapterPrototype(aggCall, grp, project));
         }
 
         this.prototypes = prototypes.build();
     }
 
     /** {@inheritDoc} */
-    @Override public List<WindowFunctionWrapper<Row>> get() {
+    List<WindowFunctionWrapper<Row>> createWrappers() {
         return Commons.transform(prototypes, Supplier::get);
     }
 
@@ -82,33 +82,17 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> impl
         return prototypes.stream().allMatch(WindowFunctionPrototype::isStreamable);
     }
 
-    /** Generates input row type for concrete aggregate call. */
-    private RelDataType mapAggregateInputRowType(Window.RexWinAggCall call, RelDataType inputRowType) {
-        List<RelDataTypeField> flds = new ArrayList<>(call.operands.size());
-        for (int i = 0; i < call.operands.size(); i++) {
-            RexNode operand = call.operands.get(i);
-
-            String name;
-            if (operand instanceof RexSlot)
-                name = inputRowType.getFieldNames().get(((RexSlot)operand).getIndex());
-            else
-                // Not input ref - generate name.
-                name = "fld$" + i;
-
-            flds.add(new RelDataTypeFieldImpl(name, i, operand.getType()));
-        }
-        return new RelRecordType(flds);
-    }
-
     /** Converts window agg call to aggregate call. */
-    private AggregateCall convertToAggregateCall(Window.RexWinAggCall call, RelDataType inputRowType) {
-        assert call.operands.size() == inputRowType.getFieldCount() : "Unexpected number of arguments";
-
+    private AggregateCall convertToAggregateCall(Window.RexWinAggCall call, Map<RexNode, Integer> rexToOrd) {
         // see org.apache.calcite.rel.core.Window.Group.getAggregateCalls
         SqlAggFunction op = (SqlAggFunction) call.getOperator();
-        // Window function wrapper executes projection before agg call.
-        // So, arguments are already projected in declaration order.
-        List<Integer> argList = ImmutableIntList.range(0, inputRowType.getFieldCount());
+        List<Integer> argList = call.operands.stream()
+            .map(it -> {
+                Integer ord = rexToOrd.get(it);
+                assert ord != null : "Unknown aggregate argument: " + it;
+                return ord;
+            })
+            .collect(Collectors.toList());
         return AggregateCall.create(
             call.getParserPosition(),
             op,
@@ -140,10 +124,7 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> impl
         private final AggregateCall call;
 
         /** */
-        private final Function<Row, Row> inProject;
-
-        /** */
-        private final RelDataType inRowType;
+        private final Function<Row, Row> project;
 
         /**  */
         private Function<Row, Row> inAdapter;
@@ -155,17 +136,16 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> impl
         private final boolean supportsStreaming;
 
         /**  */
-        private WindowFunctionWrapperPrototype(AggregateCall call, Function<Row, Row> inProject, RelDataType inRowType) {
+        private WindowFunctionWrapperPrototype(AggregateCall call, Function<Row, Row> project) {
             this.call = call;
-            this.inProject = inProject;
-            this.inRowType = inRowType;
+            this.project = project;
             supportsStreaming = WindowFunctions.isStreamingFunction(call.getAggregation());
         }
 
         /** {@inheritDoc} */
         @Override public WindowFunctionWrapper<Row> get() {
             WindowFunction<Row> windowFunction = windowFunction();
-            return new FunctionWrapper(windowFunction, inProject.andThen(inAdapter), outAdapter);
+            return new FunctionWrapper(windowFunction, project.andThen(inAdapter), outAdapter);
         }
 
         /**  */
@@ -188,7 +168,7 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> impl
         /**  */
         @NotNull private Function<Row, Row> createInAdapter(WindowFunction<Row> windowFunction) {
             List<RelDataType> outTypes = windowFunction.argumentTypes(ctx.getTypeFactory());
-            return WindowFunctionFactory.this.createInAdapter(call, inRowType, outTypes, false);
+            return WindowFunctionFactory.this.createInAdapter(call, inputRowType, outTypes, false);
         }
 
         /**  */
@@ -253,24 +233,24 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> impl
         private final Supplier<AccumulatorWrapper<Row>> factory;
 
         /**  */
-        private final Function<Row, Row> inProject;
+        private final Function<Row, Row> project;
 
         /**  */
         private final boolean streamable;
 
         /**  */
         private WindowFunctionAccumulatorAdapterPrototype(AggregateCall call, Window.Group grp,
-            Function<Row, Row> inProject, RelDataType inRowType) {
+            Function<Row, Row> project) {
             Supplier<List<AccumulatorWrapper<Row>>> accFactory =
-                ctx.expressionFactory().accumulatorsFactory(AggregateType.SINGLE, List.of(call), inRowType);
+                ctx.expressionFactory().accumulatorsFactory(AggregateType.SINGLE, List.of(call), inputRowType);
             factory = () -> accFactory.get().get(0);
-            this.inProject = inProject;
+            this.project = project;
             streamable = grp.isRows && grp.lowerBound.isUnbounded() && grp.upperBound.isCurrentRow();
         }
 
         /** {@inheritDoc} */
         @Override public WindowFunctionWrapper<Row> get() {
-            return new WindowAccumulatorWrapper<>(factory, inProject, streamable);
+            return new WindowAccumulatorWrapper<>(factory, project, streamable);
         }
 
         /** {@inheritDoc} */
@@ -319,8 +299,8 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> impl
 
         /** {@inheritDoc} */
         @Override public Object callBuffering(Row row, int rowIdx, int peerIdx, WindowFunctionFrame<Row> frame) {
-            int start = frame.getFrameStart(row, rowIdx, peerIdx);
-            int end = frame.getFrameEnd(row, rowIdx, peerIdx);
+            int start = frame.getFrameStart(rowIdx, peerIdx);
+            int end = frame.getFrameEnd(rowIdx, peerIdx);
             AccumulatorWrapper<Row> acc = accumulator();
 
             if (frameStart != start || frameEnd > end) {
@@ -329,17 +309,15 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> impl
                 accHolder = null;
                 acc = accumulator();
                 for (int i = frameStart; i <= end; i++) {
-                    Row valRow = frame.get(i);
-                    Row inRow = inProject.apply(valRow);
-                    acc.add(inRow);
+                    Row valRow = frame.getProjected(i);
+                    acc.add(valRow);
                 }
             }
             else if (frameEnd != end && end >= 0) {
                 // Append rows to accumulator.
                 for (int i = frameEnd + 1; i <= end; i++) {
-                    Row valRow = frame.get(i);
-                    Row inRow = inProject.apply(valRow);
-                    acc.add(inRow);
+                    Row valRow = frame.getProjected(i);
+                    acc.add(valRow);
                 }
             }
             frameEnd = end;

@@ -20,7 +20,6 @@ package org.apache.ignite.internal.processors.query.calcite.exec.exp.window;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Supplier;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 
 /** Non-buffering implementation of the ROWS / RANGE window partition. */
@@ -46,17 +45,16 @@ final class StreamWindowPartition<Row> extends WindowPartitionBase<Row> {
     /** */
     StreamWindowPartition(
         Comparator<Row> peerCmp,
-        Supplier<List<WindowFunctionWrapper<Row>>> accFactory,
-        RowHandler.RowFactory<Row> accRowFactory
+        WindowFunctionFactory<Row> funcFactory,
+        RowHandler.RowFactory<Row> rowFactory
     ) {
-        super(peerCmp, accFactory, accRowFactory);
+        super(peerCmp, funcFactory, rowFactory);
     }
 
     /** {@inheritDoc} */
-    @Override public boolean add(Row row) {
+    @Override public void add(Row row) {
         assert currRow == null : "StreamingWindowPartition can only hold one row";
         currRow = row;
-        return true;
     }
 
     /** {@inheritDoc} */
@@ -93,5 +91,9 @@ final class StreamWindowPartition<Row> extends WindowPartitionBase<Row> {
         rowIdx = -1;
         peerIdx = -1;
         accumulators = null;
+    }
+
+    @Override public boolean isStreaming() {
+        return true;
     }
 }

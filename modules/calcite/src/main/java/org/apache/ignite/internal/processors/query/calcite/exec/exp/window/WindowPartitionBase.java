@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.query.calcite.exec.exp.window;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Supplier;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,25 +28,25 @@ abstract class WindowPartitionBase<Row> implements WindowPartition<Row> {
     private final Comparator<Row> peerCmp;
 
     /** */
-    private final Supplier<List<WindowFunctionWrapper<Row>>> accFactory;
+    private final WindowFunctionFactory<Row> funcFactory;
 
     /** */
-    private final RowHandler.RowFactory<Row> accRowFactory;
+    private final RowHandler.RowFactory<Row> rowFactory;
 
     /** */
     WindowPartitionBase(
         Comparator<Row> peerCmp,
-        Supplier<List<WindowFunctionWrapper<Row>>> accFactory,
-        RowHandler.RowFactory<Row> accRowFactory
+        WindowFunctionFactory<Row> funcFactory,
+        RowHandler.RowFactory<Row> rowFactory
     ) {
         this.peerCmp = peerCmp;
-        this.accFactory = accFactory;
-        this.accRowFactory = accRowFactory;
+        this.funcFactory = funcFactory;
+        this.rowFactory = rowFactory;
     }
 
     /** Creates {@link WindowFunctionWrapper} list. */
     final List<WindowFunctionWrapper<Row>> createWrappers() {
-        return accFactory.get();
+        return funcFactory.createWrappers();
     }
 
     /** Compares two rows and return true if current row peer not equal to the previous row peer. */
@@ -62,7 +61,7 @@ abstract class WindowPartitionBase<Row> implements WindowPartition<Row> {
 
     /** Creates row with window function results. */
     protected final Row createResultRow(RowHandler.RowFactory<Row> rowFactory, Row src, Object... results) {
-        Row resultsRow = accRowFactory.create(results);
+        Row resultsRow = this.rowFactory.create(results);
         return rowFactory.handler().concat(src, resultsRow);
     }
 }

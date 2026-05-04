@@ -185,14 +185,11 @@ public final class WindowFunctions {
         @Override public Object call(Row row, int rowIdx, int peerIdx, WindowFunctionFrame<Row> frame) {
             int offset = getOffset(row);
             int idx = applyOffset(rowIdx, offset);
-            if (idx < 0 || idx >= frame.partitionSize())
+            if (idx < 0 || idx >= frame.size())
                 return getDefault(row);
             else {
-                Row offsetRow = frame.get(idx);
-                Object val = get(0, offsetRow);
-                if (val == null)
-                    val = getDefault(row);
-                return val;
+                Row offsetRow = frame.getProjected(idx);
+                return get(0, offsetRow);
             }
         }
 
@@ -316,7 +313,7 @@ public final class WindowFunctions {
 
         /** {@inheritDoc} */
         @Override public Object call(Row row, int rowIdx, int peerIdx, WindowFunctionFrame<Row> frame) {
-            int size = frame.partitionSize() - 1;
+            int size = frame.size() - 1;
             if (size == 0)
                 return 0.0;
             else {
@@ -346,7 +343,7 @@ public final class WindowFunctions {
         /** {@inheritDoc} */
         @Override public Object call(Row row, int rowIdx, int peerIdx, WindowFunctionFrame<Row> frame) {
             int cnt = frame.size(rowIdx, peerIdx);
-            return ((double)cnt) / frame.partitionSize();
+            return ((double)cnt) / frame.size();
         }
 
         /** {@inheritDoc} */
@@ -395,8 +392,14 @@ public final class WindowFunctions {
 
         /** {@inheritDoc} */
         @Override public Object call(Row row, int rowIdx, int peerIdx, WindowFunctionFrame<Row> frame) {
-            int startIdx = frame.getFrameStart(row, rowIdx, peerIdx);
-            Row firstRow = frame.get(startIdx);
+            int startIdx = frame.getFrameStart(rowIdx, peerIdx);
+            int endIdx = frame.getFrameEnd(rowIdx, peerIdx);
+
+            if (endIdx < startIdx)
+                // empty frame
+                return null;
+
+            Row firstRow = frame.getProjected(startIdx);
             return get(0, firstRow);
         }
 
@@ -420,11 +423,11 @@ public final class WindowFunctions {
 
         /** {@inheritDoc} */
         @Override public Object call(Row row, int rowIdx, int peerIdx, WindowFunctionFrame<Row> frame) {
-            int endIdx = frame.getFrameEnd(row, rowIdx, peerIdx);
+            int endIdx = frame.getFrameEnd(rowIdx, peerIdx);
             if (endIdx < 0)
                 return null;
             else {
-                Row lastRow = frame.get(endIdx);
+                Row lastRow = frame.getProjected(endIdx);
                 return get(0, lastRow);
             }
         }
@@ -450,7 +453,7 @@ public final class WindowFunctions {
         /** {@inheritDoc} */
         @Override public Object call(Row row, int rowIdx, int peerIdx, WindowFunctionFrame<Row> frame) {
             int buckets = get(0, row);
-            int rowCnt = frame.partitionSize();
+            int rowCnt = frame.size();
             if (buckets >= rowCnt)
                 return rowIdx + 1;
             else {
@@ -490,14 +493,14 @@ public final class WindowFunctions {
             if (offset < 1)
                 throw new IllegalArgumentException("Offset must be at least 1.");
 
-            int startIdx = frame.getFrameStart(row, rowIdx, peerIdx);
-            int endIdx = frame.getFrameEnd(row, rowIdx, peerIdx);
-            // offset is base 1
+            int startIdx = frame.getFrameStart(rowIdx, peerIdx);
+            int endIdx = frame.getFrameEnd(rowIdx, peerIdx);
+            // offset is 1-based
             int valIdx = startIdx + offset - 1;
             if (valIdx > endIdx)
                 return null;
             else {
-                Row valRow = frame.get(valIdx);
+                Row valRow = frame.getProjected(valIdx);
                 return get(0, valRow);
             }
         }

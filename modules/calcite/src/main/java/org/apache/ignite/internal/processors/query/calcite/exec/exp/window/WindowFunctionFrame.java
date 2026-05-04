@@ -19,15 +19,20 @@ package org.apache.ignite.internal.processors.query.calcite.exec.exp.window;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /** Rows frame for window function. */
 abstract class WindowFunctionFrame<Row> {
     /** Holds immutable refrence to buffered window partition rows. */
     protected final List<Row> buf;
 
+    /** Projection for function evaluation. */
+    protected final Function<Row, Row> project;
+
     /** */
-    WindowFunctionFrame(List<Row> buf) {
+    WindowFunctionFrame(List<Row> buf, Function<Row, Row> project) {
         this.buf = Collections.unmodifiableList(buf);
+        this.project = project;
     }
 
     /** Returns row from partition by index. */
@@ -36,20 +41,25 @@ abstract class WindowFunctionFrame<Row> {
         return buf.get(idx);
     }
 
+    /** Returns row from partition by index. */
+    Row getProjected(int idx) {
+        Row row = get(idx);
+        return project.apply(row);
+    }
+
     /** Returns start frame index in partition for current row peer. */
-    abstract int getFrameStart(Row row, int rowIdx, int peerIdx);
+    abstract int getFrameStart(int rowIdx, int peerIdx);
 
     /** Returns end frame index in partition for current row peer. */
-    abstract int getFrameEnd(Row row, int rowIdx, int peerIdx);
+    abstract int getFrameEnd(int rowIdx, int peerIdx);
 
     /** Return number of peers in current frame. */
     abstract int countPeers();
 
     /** Returns frame size in partition for the current row peer. */
     final int size(int rowIdx, int peerIdx) {
-        Row row = get(rowIdx);
-        int start = getFrameStart(row, rowIdx, peerIdx);
-        int end = getFrameEnd(row, rowIdx, peerIdx);
+        int start = getFrameStart(rowIdx, peerIdx);
+        int end = getFrameEnd(rowIdx, peerIdx);
         if (end >= start)
             return end - start + 1;
         else
@@ -57,7 +67,7 @@ abstract class WindowFunctionFrame<Row> {
     }
 
     /** Returns row count in partition. */
-    final int partitionSize() {
+    final int size() {
         return buf.size();
     }
 
