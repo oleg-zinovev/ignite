@@ -85,7 +85,7 @@ public class IgniteWindow extends Window implements IgniteRel {
     public IgniteWindow(RelInput input) {
         // Streaming flag required only on planning phase, and has not affect on execution.
         this(input.getCluster(),
-            changeTraits(input, IgniteConvention.INSTANCE).getTraitSet(),
+            changeTraits(input, IgniteConvention.INSTANCE).getTraitSet().plus(input.getCollation()),
             input.getInput(),
             input.getRowType("rowType"),
             ((RelInputEx)input).getWindowGroup("group"),
@@ -128,7 +128,8 @@ public class IgniteWindow extends Window implements IgniteRel {
         return pw
             .input("input", getInput())
             .item("rowType", getRowType())
-            .item("group", grp);
+            .item("group", grp)
+            .item("collation", collation());
     }
 
     /** {@inheritDoc} */

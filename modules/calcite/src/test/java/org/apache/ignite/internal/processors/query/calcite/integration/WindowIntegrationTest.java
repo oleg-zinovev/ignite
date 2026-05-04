@@ -28,7 +28,8 @@ public class WindowIntegrationTest extends AbstractBasicIntegrationTransactional
     @Override protected void init() throws Exception {
         super.init();
 
-        sql("CREATE TABLE empsalary(depname VARCHAR, empno BIGINT, salary INT, enroll_date DATE) WITH " + atomicity());
+        sql("CREATE TABLE empsalary(depname VARCHAR, empno BIGINT, salary INT, enroll_date DATE, " +
+            "PRIMARY KEY (depname, empno)) WITH AFFINITY_KEY=depname, " + atomicity());
         sql("INSERT INTO empsalary VALUES " +
             "('develop', 10, 5300, '2007-08-01'), " +
             "('sales', 1, 5000, '2006-10-01'), " +
@@ -44,7 +45,7 @@ public class WindowIntegrationTest extends AbstractBasicIntegrationTransactional
 
     /** {@inheritDoc} */
     @Override protected void afterTest() {
-        // NO-OP
+        // No-op
     }
 
     /** */

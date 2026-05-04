@@ -36,9 +36,7 @@ import org.junit.Test;
 
 import static java.util.function.Predicate.not;
 
-/**
- *
- */
+/** */
 public class WindowPlannerTest extends AbstractPlannerTest {
     /** Public schema. */
     private IgniteSchema publicSchema;
