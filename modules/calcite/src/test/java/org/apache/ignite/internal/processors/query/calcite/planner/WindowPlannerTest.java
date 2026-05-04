@@ -60,7 +60,10 @@ public class WindowPlannerTest extends AbstractPlannerTest {
                 "ID", SqlTypeName.INTEGER, "VALUE", SqlTypeName.INTEGER)
                 .addIndex("AFFINITY_TBL_IDX", 0),
             createTable("HASH_TBL", hash,
-                "ID", SqlTypeName.INTEGER, "VALUE", SqlTypeName.INTEGER)
+                "ID", SqlTypeName.INTEGER, "VALUE", SqlTypeName.INTEGER),
+            createTable("INDEXED_TBL", IgniteDistributions.single(),
+                "ID1", SqlTypeName.INTEGER, "ID2", SqlTypeName.INTEGER, "ID3", SqlTypeName.INTEGER)
+                .addIndex("INDEXED_TBL_IDX", 1, 0, 2)
         );
     }
 
@@ -177,5 +180,27 @@ public class WindowPlannerTest extends AbstractPlannerTest {
         assertPlan(sql, publicSchema, nodeOrAnyChild(isInstanceOf(IgniteCorrelatedNestedLoopJoin.class)
             .and(input(0, nodeOrAnyChild(isTableScan("random_tbl"))))
             .and(input(1, nodeOrAnyChild(isInstanceOf(IgniteWindow.class))))));
+    }
+
+    /**
+     * @throws Exception if failed
+     */
+    @Test
+    public void testWindowCollationAndCompatibleTableIndex() throws Exception {
+        String sql = "SELECT row_number() OVER (PARTITION BY ID1, ID2 ORDER BY ID3) FROM INDEXED_TBL";
+
+        assertPlan(sql, publicSchema, nodeOrAnyChild(isInstanceOf(IgniteWindow.class)
+            .and(input(isIndexScan("INDEXED_TBL", "INDEXED_TBL_IDX")))));
+    }
+
+    /**
+     * @throws Exception if failed
+     */
+    @Test
+    public void testWindowCollationAndIncompatibleTableIndex() throws Exception {
+        String sql = "SELECT row_number() OVER (PARTITION BY ID3, ID2 ORDER BY ID1) FROM INDEXED_TBL";
+
+        assertPlan(sql, publicSchema, nodeOrAnyChild(isInstanceOf(IgniteWindow.class)
+            .and(input(not(isIndexScan("INDEXED_TBL", "INDEXED_TBL_IDX"))))));
     }
 }
