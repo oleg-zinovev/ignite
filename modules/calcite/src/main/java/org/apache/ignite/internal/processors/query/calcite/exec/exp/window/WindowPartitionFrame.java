@@ -56,7 +56,4 @@ abstract class WindowPartitionFrame<Row> {
     final int size() {
         return buf.size();
     }
-
-    /** Resets current frame. */
-    protected abstract void reset();
 }

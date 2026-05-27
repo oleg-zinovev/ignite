@@ -49,6 +49,7 @@ import org.apache.ignite.internal.util.collection.IntMap;
 import static org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost.AGG_CALL_MEM_COST;
 import static org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost.AVERAGE_FIELD_SIZE;
 import static org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost.ROW_COMPARISON_COST;
+import static org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost.ROW_PASS_THROUGH_COST;
 import static org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils.changeTraits;
 
 /**
@@ -187,7 +188,7 @@ public class IgniteWindow extends Window implements IgniteRel {
         int aggCnt = grp.aggCalls.size();
 
         double rowCnt = mq.getRowCount(getInput());
-        double cpuCost = rowCnt * ROW_COMPARISON_COST;
+        double cpuCost = rowCnt * (ROW_COMPARISON_COST + ROW_PASS_THROUGH_COST);
         double memCost = (getRowType().getFieldCount() * AVERAGE_FIELD_SIZE + aggCnt * AGG_CALL_MEM_COST) * (streaming ? 1.0 : rowCnt);
 
         RelOptCost cost = costFactory.makeCost(rowCnt, cpuCost, 0, memCost, 0);
