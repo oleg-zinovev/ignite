@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.calcite.rel.RelCollations;
@@ -42,15 +41,14 @@ import org.apache.ignite.internal.processors.query.calcite.exec.ArrayRowHandler;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.IgniteRexBuilder;
-import org.apache.ignite.internal.processors.query.calcite.exec.exp.window.WindowFunctions;
-import org.apache.ignite.internal.processors.query.calcite.exec.exp.window.WindowPartition;
+import org.apache.ignite.internal.processors.query.calcite.exec.exp.window.BufferingWindowPartition;
+import org.apache.ignite.internal.processors.query.calcite.exec.exp.window.StreamWindowPartition;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.window.WindowPartitionFactory;
 import org.apache.ignite.internal.processors.query.calcite.sql.fun.IgniteOwnSqlOperatorTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.type.IgniteTypeFactory;
 import org.apache.ignite.internal.processors.query.calcite.util.TypeUtils;
 import org.apache.ignite.internal.util.typedef.F;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -64,6 +62,8 @@ public class WindowExecutionTest extends AbstractExecutionTest {
     @Test
     public void testRowNumber() {
         checkWindow(rowNumber(), true,
+            new Object[][] {{1}, {2}, {1}, {2}, {3}, {1}});
+        checkWindow(rowNumber(), false,
             new Object[][] {{1}, {2}, {1}, {2}, {3}, {1}});
     }
 
@@ -90,6 +90,8 @@ public class WindowExecutionTest extends AbstractExecutionTest {
 
         checkWindow(grp, true,
             new Object[][] {{1}, {1}, {1}, {2}, {3}, {1}});
+        checkWindow(grp, false,
+            new Object[][] {{1}, {1}, {1}, {2}, {3}, {1}});
     }
 
     /** rank() over (partition by {0} order by {1}). */
@@ -114,6 +116,8 @@ public class WindowExecutionTest extends AbstractExecutionTest {
         );
 
         checkWindow(grp, true,
+            new Object[][] {{1}, {1}, {1}, {2}, {3}, {1}});
+        checkWindow(grp, false,
             new Object[][] {{1}, {1}, {1}, {2}, {3}, {1}});
     }
 
@@ -439,6 +443,8 @@ public class WindowExecutionTest extends AbstractExecutionTest {
     public void testCountRowsBetweenUnboundedPrescendingAndCurrentRow() {
         checkWindow(count(true, UNBOUNDED_PRECEDING, CURRENT_ROW), true,
             new Object[][] {{1}, {2}, {1}, {2}, {3}, {1}});
+        checkWindow(count(true, UNBOUNDED_PRECEDING, CURRENT_ROW), false,
+            new Object[][] {{1}, {2}, {1}, {2}, {3}, {1}});
     }
 
     /** count(*) over (partition by {0} rows between unbounded prescending and unbounded following). */
@@ -479,6 +485,8 @@ public class WindowExecutionTest extends AbstractExecutionTest {
     @Test
     public void testSumRowsAndRowNumberToCurrentRow() {
         checkWindow(sumRowsAndRowNumber(CURRENT_ROW), true,
+            new Object[][] {{1, 1}, {2, 2}, {2, 1}, {4, 2}, {6, 3}, {3, 1}});
+        checkWindow(sumRowsAndRowNumber(CURRENT_ROW), false,
             new Object[][] {{1, 1}, {2, 2}, {2, 1}, {4, 2}, {6, 3}, {3, 1}});
     }
 
@@ -530,9 +538,8 @@ public class WindowExecutionTest extends AbstractExecutionTest {
         Node<Object[]> input,
         Object[][] expRes
     ) {
-        Assert.assertEquals(streaming, WindowFunctions.streamable(grp));
 
-        WindowNode<Object[]> window = createWindowNode(ctx, grp, input);
+        Node<Object[]> window = createWindowNode(ctx, grp, input, streaming);
 
         int resFldShift = input.rowType().getFieldCount();
 
@@ -550,7 +557,8 @@ public class WindowExecutionTest extends AbstractExecutionTest {
     }
 
     /** */
-    private WindowNode<Object[]> createWindowNode(ExecutionContext<Object[]> ctx, Window.Group grp, Node<Object[]> input) {
+    private Node<Object[]> createWindowNode(ExecutionContext<Object[]> ctx, Window.Group grp,
+        Node<Object[]> input, boolean streaming) {
         Class<?>[] outFields = new Class<?>[input.rowType().getFieldCount() + grp.aggCalls.size()];
         Arrays.fill(outFields, int.class);
         RelDataType outRowType = TypeUtils.createRowType(typeFactory, outFields);
@@ -560,16 +568,18 @@ public class WindowExecutionTest extends AbstractExecutionTest {
 
         List<AggregateCall> aggCalls = toAggCall(grp);
 
-        Supplier<WindowPartition<Object[]>> partitionFactory =
-            new WindowPartitionFactory<>(ctx, grp, aggCalls, input.rowType());
+        WindowPartitionFactory<Object[]> partitionFactory = new WindowPartitionFactory<>(ctx);
 
-        WindowNode<Object[]> window = new WindowNode<>(
-            ctx,
-            outRowType,
-            partCmp,
-            partitionFactory,
-            rowFactory()
-        );
+        SingleNode<Object[]> window;
+        if (streaming) {
+            StreamWindowPartition<Object[]> partition = partitionFactory.newStreamingPartition(grp, aggCalls, input.rowType());
+            window = new StreamingWindowNode<>(ctx, outRowType, partCmp, partition, rowFactory());
+        }
+        else {
+            BufferingWindowPartition<Object[]> partition = partitionFactory.newBufferingPartition(grp, aggCalls, input.rowType());
+            window = new BufferingWindowNode<>(ctx, outRowType, partCmp, partition, rowFactory());
+        }
+
         window.register(input);
         return window;
     }

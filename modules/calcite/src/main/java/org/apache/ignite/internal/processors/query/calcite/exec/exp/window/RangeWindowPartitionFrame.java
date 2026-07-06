@@ -126,15 +126,6 @@ final class RangeWindowPartitionFrame<Row> extends WindowPartitionFrame<Row> {
         return cachedEndIdx;
     }
 
-    /** {@inheritDoc} */
-    @Override public void reset() {
-        // Reseting index cache.
-        cachedStartPeerIdx = -1;
-        cachedEndPeerIdx = -1;
-        cachedStartRowIdx = -1;
-        cachedEndRowIdx = -1;
-    }
-
     /** Binary search bound. */
     private int bsearchBound(Row row, List<Row> buf, boolean lower) {
         int start = 0;
