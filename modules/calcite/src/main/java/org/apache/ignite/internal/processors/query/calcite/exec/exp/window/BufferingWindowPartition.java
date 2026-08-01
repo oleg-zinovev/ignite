@@ -126,7 +126,7 @@ public final class BufferingWindowPartition<Row> extends WindowPartitionBase<Row
         List<Row> buf
     ) {
         if (grp.isRows)
-            return new RowWindowPartitionFrame<>(buf, ctx, grp, inputRowType);
+            return new RowWindowPartitionFrame<>(buf, ctx, peerCmp, grp, inputRowType);
         else
             return new RangeWindowPartitionFrame<>(buf, ctx, peerCmp, grp, inputRowType);
     }

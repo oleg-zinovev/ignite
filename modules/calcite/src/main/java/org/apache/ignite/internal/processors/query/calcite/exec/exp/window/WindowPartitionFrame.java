@@ -17,16 +17,26 @@
 
 package org.apache.ignite.internal.processors.query.calcite.exec.exp.window;
 
+import java.util.Comparator;
 import java.util.List;
+import org.apache.calcite.rex.RexWindowExclusion;
 
 /** Rows frame within window partition. */
 abstract class WindowPartitionFrame<Row> {
     /** Holds immutable refrence to buffered window partition rows. */
     private final List<Row> buf;
 
-    /** */
-    WindowPartitionFrame(List<Row> buf) {
+    /** Comparator for determining a peer's index within a partition. */
+    private final Comparator<Row> peerCmp;
+
+    /** Window group exclusion. */
+    final RexWindowExclusion exclusion;
+
+    /**  */
+    WindowPartitionFrame(List<Row> buf, Comparator<Row> peerCmp, RexWindowExclusion exclusion) {
         this.buf = buf;
+        this.peerCmp = peerCmp;
+        this.exclusion = exclusion;
     }
 
     /** Returns row from partition by index. */
@@ -54,5 +64,26 @@ abstract class WindowPartitionFrame<Row> {
     /** Returns row count in partition. */
     final int size() {
         return buf.size();
+    }
+
+    /** Compares two rows using peer comparator. */
+    final int compareRowPeer(Row row1, Row row2) {
+        // in case peerCmp is not set - all rows has one peer
+        return peerCmp == null ? 0 : peerCmp.compare(row1, row2);
+    }
+
+    /** Checks if candidate row should be excluded from frame againts current row. */
+    public boolean exclude(int currRowIdx, int candidateRowIdx) {
+        switch (exclusion) {
+            case EXCLUDE_CURRENT_ROW:
+                return currRowIdx == candidateRowIdx;
+            case EXCLUDE_TIES:
+                return currRowIdx != candidateRowIdx && compareRowPeer(get(currRowIdx), get(candidateRowIdx)) == 0;
+            case EXCLUDE_GROUP:
+                return compareRowPeer(get(currRowIdx), get(candidateRowIdx)) == 0;
+            case EXCLUDE_NO_OTHER:
+            default:
+                return false;
+        }
     }
 }

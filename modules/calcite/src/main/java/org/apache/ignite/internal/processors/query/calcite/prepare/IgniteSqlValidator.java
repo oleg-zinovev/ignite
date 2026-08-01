@@ -49,7 +49,6 @@ import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.calcite.sql.SqlSelect;
 import org.apache.calcite.sql.SqlUpdate;
 import org.apache.calcite.sql.SqlUtil;
-import org.apache.calcite.sql.SqlWindow;
 import org.apache.calcite.sql.dialect.CalciteSqlDialect;
 import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.sql.type.FamilyOperandTypeChecker;
@@ -300,13 +299,6 @@ public class IgniteSqlValidator extends SqlValidatorImpl {
         else if (call.getKind() == SqlKind.CAST) {
             if (call.getOperandList().size() > 2)
                 throw newValidationError(call, IgniteResource.INSTANCE.invalidCastParameters());
-        }
-        else if (call.getKind() == SqlKind.OVER && call.operand(1) instanceof SqlWindow) {
-            SqlLiteral exclude = call.<SqlWindow>operand(1).getExclude();
-            if (exclude != null && !SqlWindow.isExcludeNoOthers(exclude)) {
-                String clause = exclude.toSqlString(CalciteSqlDialect.DEFAULT).getSql();
-                throw newValidationError(exclude, IgniteResource.INSTANCE.unsupportedClause(clause));
-            }
         }
 
         super.validateCall(call, scope);

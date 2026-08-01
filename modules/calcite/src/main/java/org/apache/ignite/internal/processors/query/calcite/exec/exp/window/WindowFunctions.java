@@ -32,6 +32,7 @@ import org.apache.ignite.internal.processors.query.calcite.sql.fun.IgniteOwnSqlO
 import org.apache.ignite.internal.processors.query.calcite.type.IgniteTypeFactory;
 import org.apache.ignite.internal.util.typedef.F;
 
+import static org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_NO_OTHER;
 import static org.apache.calcite.sql.type.SqlTypeName.ANY;
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
 import static org.apache.calcite.sql.type.SqlTypeName.DOUBLE;
@@ -50,9 +51,12 @@ public final class WindowFunctions {
         if (grp.aggCalls.stream().allMatch(it -> STREAMING_FUNCTIONS.contains(it.op)))
             return true;
 
-        // group frame in 'ROWS BETWEEN UNBOUNDED PRESCENDING AND CURRENT ROW'
+        // group frame in 'ROWS BETWEEN UNBOUNDED PRESCENDING AND CURRENT ROW EXCLUDE NO OTHER'
         //noinspection RedundantIfStatement
-        if (grp.isRows && grp.lowerBound.isUnbounded() && grp.upperBound.isCurrentRow())
+        if (grp.isRows
+            && grp.lowerBound.isUnbounded()
+            && grp.upperBound.isCurrentRow()
+            && grp.exclude == EXCLUDE_NO_OTHER)
             return true;
 
         return false;
@@ -395,8 +399,15 @@ public final class WindowFunctions {
                 // empty frame
                 return null;
 
-            Row firstRow = frame.get(startIdx);
-            return get(0, firstRow);
+            for (int idx = startIdx; idx <= endIdx; idx++) {
+                if (frame.exclude(rowIdx, idx))
+                    continue;
+
+                Row firstRow = frame.get(idx);
+                return get(0, firstRow);
+            }
+
+            return null;
         }
 
         /** {@inheritDoc} */
@@ -422,10 +433,17 @@ public final class WindowFunctions {
             int endIdx = frame.getFrameEnd(rowIdx, peerIdx);
             if (endIdx < 0)
                 return null;
-            else {
-                Row lastRow = frame.get(endIdx);
+
+            int startIdx = frame.getFrameStart(rowIdx, peerIdx);
+            for (int idx = endIdx; idx >= startIdx; idx--) {
+                if (frame.exclude(rowIdx, idx))
+                    continue;
+
+                Row lastRow = frame.get(idx);
                 return get(0, lastRow);
             }
+
+            return null;
         }
 
         /** {@inheritDoc} */

@@ -56,6 +56,10 @@ import org.junit.Test;
 import static org.apache.calcite.rex.RexWindowBounds.CURRENT_ROW;
 import static org.apache.calcite.rex.RexWindowBounds.UNBOUNDED_FOLLOWING;
 import static org.apache.calcite.rex.RexWindowBounds.UNBOUNDED_PRECEDING;
+import static org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_CURRENT_ROW;
+import static org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_GROUP;
+import static org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_NO_OTHER;
+import static org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_TIES;
 
 /** */
 public class WindowExecutionTest extends AbstractExecutionTest {
@@ -85,7 +89,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -113,7 +117,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -141,7 +145,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -167,7 +171,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -176,56 +180,36 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             new Object[][] {{1.0}, {1.0}, {1.0 / 3}, {2.0 / 3}, {1.0}, {1.0}});
     }
 
-    /** first_value({1}) over (partition by {0} order by {1}). */
+    /** first_value([fld]) over (partition by {0} order by {1} rows between unbounded preceding and current row exclude [exclusion]). */
     @Test
     public void testFirstValue() {
-        Window.RexWinAggCall aggCall = new Window.RexWinAggCall(
-            SqlParserPos.ZERO,
-            SqlStdOperatorTable.FIRST_VALUE,
-            relIntType,
-            F.asList(rexBuilder.makeInputRef(relIntType, 1)),
-            0,
-            false,
-            false
-        );
-        Window.Group grp = new Window.Group(
-            ImmutableBitSet.of(0),
-            false,
-            UNBOUNDED_PRECEDING,
-            CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
-            RelCollations.of(1),
-            F.asList(aggCall)
-        );
-
-        checkWindow(grp, false,
+        checkWindow(firstValue(1, EXCLUDE_NO_OTHER), false,
             new Object[][] {{1}, {1}, {1}, {1}, {1}, {0}});
+
+        checkWindow(firstValue(2, EXCLUDE_CURRENT_ROW), false,
+            new Object[][] {{5}, {1}, {null}, {1}, {1}, {null}});
+
+        checkWindow(firstValue(2, EXCLUDE_GROUP), false,
+            new Object[][] {{null}, {null}, {null}, {1}, {1}, {null}});
+
+        checkWindow(firstValue(2, EXCLUDE_TIES), false,
+            new Object[][] {{1}, {5}, {1}, {1}, {1}, {1}});
     }
 
-    /** last_value({2}) over (partition by {0} order by {1}). */
+    /** last_value({2}) over (partition by {0} order by {1} exclude [exclusion]). */
     @Test
     public void testLastValue() {
-        Window.RexWinAggCall aggCall = new Window.RexWinAggCall(
-            SqlParserPos.ZERO,
-            SqlStdOperatorTable.LAST_VALUE,
-            relIntType,
-            F.asList(rexBuilder.makeInputRef(relIntType, 2)),
-            0,
-            false,
-            false
-        );
-        Window.Group grp = new Window.Group(
-            ImmutableBitSet.of(0),
-            false,
-            UNBOUNDED_PRECEDING,
-            CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
-            RelCollations.of(1),
-            F.asList(aggCall)
-        );
-
-        checkWindow(grp, false,
+        checkWindow(lastValue(CURRENT_ROW, EXCLUDE_NO_OTHER), false,
             new Object[][] {{5}, {5}, {1}, {5}, {6}, {1}});
+
+        checkWindow(lastValue(CURRENT_ROW, EXCLUDE_CURRENT_ROW), false,
+            new Object[][] {{5}, {1}, {null}, {1}, {5}, {null}});
+
+        checkWindow(lastValue(CURRENT_ROW, EXCLUDE_GROUP), false,
+            new Object[][] {{null}, {null}, {null}, {1}, {5}, {null}});
+
+        checkWindow(lastValue(UNBOUNDED_FOLLOWING, EXCLUDE_TIES), false,
+            new Object[][] {{1}, {5}, {6}, {6}, {6}, {1}});
     }
 
     /** ntile({3}) over (partition by {0}). */
@@ -245,7 +229,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.EMPTY,
             F.asList(aggCall)
         );
@@ -274,7 +258,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -300,7 +284,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -329,7 +313,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -359,7 +343,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -385,7 +369,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -414,7 +398,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -444,7 +428,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             false,
             UNBOUNDED_PRECEDING,
             CURRENT_ROW,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -453,44 +437,90 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             new Object[][] {{5}, {1}, {6}, {2}, {3}, {0}});
     }
 
-    /** count(*) over (partition by {0} rows between unbounded prescending and current row). */
+    /** count(*) over (partition by {0} order by {1} rows between unbounded prescending and current row exclude [exclusion]). */
     @Test
     public void testCountRowsBetweenUnboundedPrescendingAndCurrentRow() {
-        checkWindow(count(true, UNBOUNDED_PRECEDING, CURRENT_ROW), true,
+        checkWindow(count(true, UNBOUNDED_PRECEDING, CURRENT_ROW, EXCLUDE_NO_OTHER), true,
             new Object[][] {{1}, {2}, {1}, {2}, {3}, {1}});
-        checkWindow(count(true, UNBOUNDED_PRECEDING, CURRENT_ROW), false,
+        checkWindow(count(true, UNBOUNDED_PRECEDING, CURRENT_ROW, EXCLUDE_NO_OTHER), false,
             new Object[][] {{1}, {2}, {1}, {2}, {3}, {1}});
+
+        checkWindow(count(true, UNBOUNDED_PRECEDING, CURRENT_ROW, EXCLUDE_CURRENT_ROW), false,
+            new Object[][] {{0}, {1}, {0}, {1}, {2}, {0}});
+
+        checkWindow(count(true, UNBOUNDED_PRECEDING, CURRENT_ROW, EXCLUDE_GROUP), false,
+            new Object[][] {{0}, {0}, {0}, {1}, {2}, {0}});
+
+        checkWindow(count(true, UNBOUNDED_PRECEDING, CURRENT_ROW, EXCLUDE_TIES), false,
+            new Object[][] {{1}, {1}, {1}, {2}, {3}, {1}});
     }
 
-    /** count(*) over (partition by {0} rows between unbounded prescending and unbounded following). */
+    /** count(*) over (partition by {0} order by {1} rows between unbounded prescending and unbounded following exclude [exclusion]). */
     @Test
     public void testCountRowsBetweenUnboundedPrescendingAndUnboundedFollowing() {
-        checkWindow(count(true, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING), false,
+        checkWindow(count(true, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING, EXCLUDE_NO_OTHER), false,
             new Object[][] {{2}, {2}, {3}, {3}, {3}, {1}});
+
+        checkWindow(count(true, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING, EXCLUDE_CURRENT_ROW), false,
+            new Object[][] {{1}, {1}, {2}, {2}, {2}, {0}});
+
+        checkWindow(count(true, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING, EXCLUDE_GROUP), false,
+            new Object[][] {{0}, {0}, {2}, {2}, {2}, {0}});
+
+        checkWindow(count(true, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING, EXCLUDE_TIES), false,
+            new Object[][] {{1}, {1}, {3}, {3}, {3}, {1}});
     }
 
-    /** count(*) over (partition by {0} order by {1} range between unbounded prescending and current row). */
+    /** count(*) over (partition by {0} order by {1} range between unbounded prescending and current row exclude [exclusion]). */
     @Test
     public void testCountRangeBetweenUnboundedPrescendingAndCurrentRow() {
-        checkWindow(count(false, UNBOUNDED_PRECEDING, CURRENT_ROW), false,
+        checkWindow(count(false, UNBOUNDED_PRECEDING, CURRENT_ROW, EXCLUDE_NO_OTHER), false,
             new Object[][] {{2}, {2}, {1}, {2}, {3}, {1}});
+
+        checkWindow(count(false, UNBOUNDED_PRECEDING, CURRENT_ROW, EXCLUDE_CURRENT_ROW), false,
+            new Object[][] {{1}, {1}, {0}, {1}, {2}, {0}});
+
+        checkWindow(count(false, UNBOUNDED_PRECEDING, CURRENT_ROW, EXCLUDE_GROUP), false,
+            new Object[][] {{0}, {0}, {0}, {1}, {2}, {0}});
+
+        checkWindow(count(false, UNBOUNDED_PRECEDING, CURRENT_ROW, EXCLUDE_TIES), false,
+            new Object[][] {{1}, {1}, {1}, {2}, {3}, {1}});
     }
 
-    /** count(*) over (partition by {0} order by {1} range between unbounded prescending and unbounded following). */
+    /** count(*) over (partition by {0} order by {1} range between unbounded prescending and unbounded following exclude [exclusion]). */
     @Test
     public void testCountRangeBetweenUnboundedPrescendingAndUnboundedFollowing() {
-        checkWindow(count(false, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING), false,
+        checkWindow(count(false, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING, EXCLUDE_NO_OTHER), false,
             new Object[][] {{2}, {2}, {3}, {3}, {3}, {1}});
+
+        checkWindow(count(false, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING, EXCLUDE_CURRENT_ROW), false,
+            new Object[][] {{1}, {1}, {2}, {2}, {2}, {0}});
+
+        checkWindow(count(false, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING, EXCLUDE_GROUP), false,
+            new Object[][] {{0}, {0}, {2}, {2}, {2}, {0}});
+
+        checkWindow(count(false, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING, EXCLUDE_TIES), false,
+            new Object[][] {{1}, {1}, {3}, {3}, {3}, {1}});
     }
 
-    /** count(*) over (partition by {0} order by {1} range between 2 prescending and 1 following). */
+    /** count(*) over (partition by {0} order by {1} range between 2 prescending and 1 following exclude [exclusion]). */
     @Test
     public void testCountRangeBetween2PrescendingAnd1Following() {
         IgniteRexBuilder rexBuilder = new IgniteRexBuilder(typeFactory);
         RexWindowBound lower = RexWindowBounds.preceding(rexBuilder.makeLiteral(2, relIntType));
         RexWindowBound upper = RexWindowBounds.following(rexBuilder.makeLiteral(1, relIntType));
-        checkWindow(count(false, lower, upper), false,
+
+        checkWindow(count(false, lower, upper, EXCLUDE_NO_OTHER), false,
             new Object[][] {{2}, {2}, {2}, {3}, {3}, {1}});
+
+        checkWindow(count(false, lower, upper, EXCLUDE_CURRENT_ROW), false,
+            new Object[][] {{1}, {1}, {1}, {2}, {2}, {0}});
+
+        checkWindow(count(false, lower, upper, EXCLUDE_GROUP), false,
+            new Object[][] {{0}, {0}, {1}, {2}, {2}, {0}});
+
+        checkWindow(count(false, lower, upper, EXCLUDE_TIES), false,
+            new Object[][] {{1}, {1}, {2}, {3}, {3}, {1}});
     }
 
     /**
@@ -534,7 +564,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             .mapToObj(i -> row(10000))
             .toArray(Object[][]::new);
 
-        checkWindow(ctx, count(true, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING), false,
+        checkWindow(ctx, count(true, UNBOUNDED_PRECEDING, UNBOUNDED_FOLLOWING, EXCLUDE_NO_OTHER), false,
             createSeqInputNode(ctx, 10000), exp);
     }
 
@@ -670,16 +700,61 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             true,
             UNBOUNDED_PRECEDING,
             UNBOUNDED_FOLLOWING,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.EMPTY,
             F.asList(aggCall)
         );
     }
 
+    /** first_value([fld]) over (partition by {0} order by {1} range between unbounded prescending and current row exclude [exclusion]) */
+    private static Window.Group firstValue(int fld, RexWindowExclusion exclusion) {
+        Window.RexWinAggCall aggCall = new Window.RexWinAggCall(
+            SqlParserPos.ZERO,
+            SqlStdOperatorTable.FIRST_VALUE,
+            relNullableIntType,
+            F.asList(rexBuilder.makeInputRef(relIntType, fld)),
+            0,
+            false,
+            false
+        );
+        return new Window.Group(
+            ImmutableBitSet.of(0),
+            false,
+            UNBOUNDED_PRECEDING,
+            CURRENT_ROW,
+            exclusion,
+            RelCollations.of(1),
+            F.asList(aggCall)
+        );
+    }
+
+    /** last_value({2}) over (partition by {0} order by {1} range between unbounded prescending and [upper] exclude [exclusion]) */
+    private static Window.Group lastValue(RexWindowBound upper, RexWindowExclusion exclusion) {
+        Window.RexWinAggCall aggCall = new Window.RexWinAggCall(
+            SqlParserPos.ZERO,
+            SqlStdOperatorTable.LAST_VALUE,
+            relNullableIntType,
+            F.asList(rexBuilder.makeInputRef(relIntType, 2)),
+            0,
+            false,
+            false
+        );
+        return new Window.Group(
+            ImmutableBitSet.of(0),
+            false,
+            UNBOUNDED_PRECEDING,
+            upper,
+            exclusion,
+            RelCollations.of(1),
+            F.asList(aggCall)
+        );
+    }
+
     /**
-     * count({0}) over (partition by {0} rows between [lower] and [upper])
+     * count({0}) over (partition by {0} rows between [lower] and [upper] exclude [exclusion])
      */
-    private static Window.Group count(boolean rows, RexWindowBound lower, RexWindowBound upper) {
+    private static Window.Group count(boolean rows, RexWindowBound lower, RexWindowBound upper,
+        RexWindowExclusion exclusion) {
         Window.RexWinAggCall aggCall = new Window.RexWinAggCall(
             SqlParserPos.ZERO,
             SqlStdOperatorTable.COUNT,
@@ -694,7 +769,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             rows,
             lower,
             upper,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            exclusion,
             RelCollations.of(1),
             F.asList(aggCall)
         );
@@ -728,7 +803,7 @@ public class WindowExecutionTest extends AbstractExecutionTest {
             true,
             UNBOUNDED_PRECEDING,
             upper,
-            RexWindowExclusion.EXCLUDE_NO_OTHER,
+            EXCLUDE_NO_OTHER,
             RelCollations.EMPTY,
             F.asList(sumCall, rowNumberCall)
         );
@@ -739,6 +814,9 @@ public class WindowExecutionTest extends AbstractExecutionTest {
 
     /** */
     private static final RelDataType relIntType = typeFactory.createType(int.class);
+
+    /** */
+    private static final RelDataType relNullableIntType = typeFactory.createTypeWithNullability(relIntType, true);
 
     /** */
     private static final RelDataType relDoubleType = typeFactory.createType(double.class);

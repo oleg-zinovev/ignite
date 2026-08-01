@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.calcite.exec.exp.window;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import com.google.common.collect.ImmutableList;
@@ -57,10 +58,11 @@ final class RowWindowPartitionFrame<Row> extends WindowPartitionFrame<Row> {
     RowWindowPartitionFrame(
         List<Row> buf,
         ExecutionContext<Row> ctx,
+        Comparator<Row> peerCmp,
         Window.Group grp,
         RelDataType inputRowType
     ) {
-        super(buf);
+        super(buf, peerCmp, grp.exclude);
         lowerBoundOffset = rowsBoundToOffset(ctx, grp.lowerBound, inputRowType);
         upperBoundOffset = rowsBoundToOffset(ctx, grp.upperBound, inputRowType);
     }

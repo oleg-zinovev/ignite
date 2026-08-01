@@ -26,6 +26,9 @@ import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
+import static org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_GROUP;
+import static org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_TIES;
+
 /** Factory to create {@link WindowPartitionBase} factory from {@link Window.Group}. */
 public final class WindowPartitionFactory<Row> {
     /** */
@@ -57,8 +60,9 @@ public final class WindowPartitionFactory<Row> {
     private <T extends WindowPartition<Row>> T createPartition(Window.Group grp, List<AggregateCall> calls,
         RelDataType inputRowType, PartitionCreator<Row, T> creator) {
         Comparator<Row> peerCmp;
-        if (grp.isRows)
-            // peer comparator in meaningless in rows frame.
+        if (grp.isRows && grp.exclude != EXCLUDE_GROUP && grp.exclude != EXCLUDE_TIES)
+            // Peer comparator is meaningless for rows frame,
+            // but is required for EXCLUDE_GROUP and EXCLUDE_TIES computation.
             peerCmp = null;
         else
             peerCmp = ctx.expressionFactory().comparator(grp.collation());

@@ -41,9 +41,6 @@ import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
 /** {@link WindowPartitionFrame} for RANGE clause. */
 final class RangeWindowPartitionFrame<Row> extends WindowPartitionFrame<Row> {
-    /** Comparator for determining a peer's index within a partition. */
-    private final Comparator<Row> peerCmp;
-
     /** Returns the row that marks the start of the frame. */
     private final Function<Row, Row> lowerBound;
 
@@ -82,8 +79,7 @@ final class RangeWindowPartitionFrame<Row> extends WindowPartitionFrame<Row> {
         Window.Group grp,
         RelDataType inputRowType
     ) {
-        super(buf);
-        this.peerCmp = peerCmp;
+        super(buf, peerCmp, grp.exclude);
         lowerBound = rangeBoundToProject(ctx, grp.lowerBound, grp.collation(), inputRowType);
         cacheableLowerBound = isCacheableBound(grp.lowerBound);
         upperBound = rangeBoundToProject(ctx, grp.upperBound, grp.collation(), inputRowType);
@@ -144,12 +140,6 @@ final class RangeWindowPartitionFrame<Row> extends WindowPartitionFrame<Row> {
         }
 
         return lower ? start : end;
-    }
-
-    /** */
-    private int compareRowPeer(Row row1, Row row2) {
-        // in case peerCmp is not set - all rows has one peer
-        return peerCmp == null ? 0 : peerCmp.compare(row1, row2);
     }
 
     /** Create projection for range frame bound. */

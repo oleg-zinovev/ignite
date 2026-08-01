@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexWindowExclusion;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.AccumulatorWrapper;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.AccumulatorsFactoryBase;
@@ -31,6 +32,9 @@ import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.Aggregat
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.agg.IterableAccumulator;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.jetbrains.annotations.NotNull;
+
+import static org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_GROUP;
+import static org.apache.calcite.rex.RexWindowExclusion.EXCLUDE_NO_OTHER;
 
 /** A factory class responsible for instantiating window functions. */
 final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> {
@@ -205,6 +209,9 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> {
         private int frameEnd = -1;
 
         /** */
+        private int prevPeerIdx = -1;
+
+        /** */
         private WindowAccumulatorWrapper(Supplier<AccumulatorWrapper<Row>> factory) {
             this.factory = factory;
         }
@@ -222,13 +229,16 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> {
             int end = frame.getFrameEnd(rowIdx, peerIdx);
             AccumulatorWrapper<Row> acc = accumulator();
 
-            if (frameStart != start || frameEnd > end) {
-                // Recalculate accumulator if start idx changed.
+            if (shouldRecalculate(start, end, peerIdx, frame.exclusion)) {
                 frameStart = start;
                 accHolder = null;
                 acc = accumulator();
                 for (int i = frameStart; i <= end; i++) {
                     Row valRow = frame.get(i);
+
+                    if (frame.exclude(rowIdx, i))
+                        continue;
+
                     acc.add(valRow);
                 }
             }
@@ -236,10 +246,15 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> {
                 // Append rows to accumulator.
                 for (int i = frameEnd + 1; i <= end; i++) {
                     Row valRow = frame.get(i);
+
+                    if (frame.exclude(rowIdx, i))
+                        continue;
+
                     acc.add(valRow);
                 }
             }
             frameEnd = end;
+            prevPeerIdx = peerIdx;
             return acc.end();
         }
 
@@ -254,6 +269,22 @@ final class WindowFunctionFactory<Row> extends AccumulatorsFactoryBase<Row> {
                 return accHolder;
             accHolder = factory.get();
             return accHolder;
+        }
+
+        /** */
+        private boolean shouldRecalculate(int start, int end, int peerIdx, RexWindowExclusion exclusion) {
+            // Recalculate accumulator if:
+            // - frame start idx changed;
+            // - frame end idx greater than current row frame end idx;
+            // - exclusion is GROUP and peer idx changed;
+            // - exclusion is not NO_OTHER.
+            if (frameStart != start || frameEnd > end)
+                return true;
+
+            if (exclusion == EXCLUDE_GROUP)
+                return prevPeerIdx != peerIdx;
+
+            return exclusion != EXCLUDE_NO_OTHER;
         }
     }
 }
